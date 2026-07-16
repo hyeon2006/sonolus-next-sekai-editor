@@ -16,8 +16,10 @@ import {
     type NoteKindValue,
     type PreviewChart,
     type PreviewConnector,
+    type PreviewFever,
     type PreviewNote,
     type PreviewSimLine,
+    type PreviewSkill,
     type PreviewSlide,
     type PreviewStage,
     type StagePivotEvent,
@@ -426,12 +428,51 @@ export const buildPreviewChart = (state: State, noteSpeed: number): PreviewChart
     notes.sort((a, b) => a.targetTime - b.targetTime)
     connectors.sort((a, b) => a.head.targetTime - b.head.targetTime)
 
+    const skills: PreviewSkill[] = getStoreEntities(state.store.grid.skill)
+        .sort((a, b) => a.beat - b.beat)
+        .map((event, index) => ({
+            time: toTime(event.beat),
+            effect: event.effect,
+            level: event.level,
+            value: event.value,
+            scale: event.scale,
+            duration: event.duration,
+            index,
+        }))
+
+    const chance = getStoreEntities(state.store.grid.feverChance).sort((a, b) => a.beat - b.beat)[0]
+    const start = getStoreEntities(state.store.grid.feverStart).sort((a, b) => a.beat - b.beat)[0]
+    let fever: PreviewFever | undefined
+    if (chance && start) {
+        const chanceTime = toTime(chance.beat)
+        const startTime = toTime(start.beat)
+        if (chanceTime < startTime) {
+            fever = {
+                chanceTime,
+                startTime,
+                force: chance.force,
+                noteTimes: notes
+                    .filter(
+                        (note) =>
+                            !note.isFake &&
+                            note.kind !== NoteKind.anchor &&
+                            note.kind !== NoteKind.hideTick &&
+                            note.targetTime >= chanceTime &&
+                            note.targetTime < startTime,
+                    )
+                    .map((note) => note.targetTime),
+            }
+        }
+    }
+
     return {
         isDynamicStages,
         notes,
         connectors,
         slides,
         simLines,
+        skills,
+        fever,
         cameras,
         groups,
         stages,

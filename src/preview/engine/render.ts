@@ -45,6 +45,7 @@ import {
 } from './model'
 import { drawNote, drawSlideNoteHead, getNoteSpriteSet } from './note'
 import { LANE_PARTICLE_LAYER, PARTICLE_LAYER, drawParticleEffect, hashSeed } from './particleDraw'
+import { drawRushEvents } from './rush'
 import { drawSimLine } from './simLine'
 import {
     drawStageWithProps,
@@ -174,6 +175,18 @@ export const renderPreviewFrame = (
     } else {
         drawStaticStage(draw, skin)
     }
+
+    drawRushEvents(
+        renderer,
+        skin,
+        chart,
+        now,
+        showEffects,
+        stageProps,
+        stageTransforms,
+        stageAffines,
+        particle,
+    )
 
     const groupScaledNow = (note: PreviewNote) => scaledNows[note.groupIndex] ?? now
     const groupPreempt = (note: PreviewNote) =>

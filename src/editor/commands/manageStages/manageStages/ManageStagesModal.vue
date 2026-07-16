@@ -78,6 +78,9 @@ const onDelete = (stageId: StageId, name: string) => {
     } = {
         bpm: undefined,
         timeScale: undefined,
+        skill: undefined,
+        feverChance: undefined,
+        feverStart: undefined,
 
         cameraEventJoint: undefined,
         cameraEventConnection: undefined,

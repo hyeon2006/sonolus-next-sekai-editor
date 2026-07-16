@@ -4,6 +4,7 @@ import Value from 'typebox/value'
 import type { Chart } from '../..'
 import { settings } from '../../../settings'
 import { addToGroups, type GroupId, type GroupObject } from '../../groups'
+import { createRushEvents } from '../../rushEvents'
 import { addDefaultStageToStages, addToStages, type StageId, type StageObject } from '../../stages'
 import { parseBpmsToChart } from './bpm'
 import { parseCameraEventsToChart } from './events/camera'
@@ -13,6 +14,7 @@ import { parseStageStyleEventsToChart } from './events/stage/style'
 import { parseStageTransformEventsToChart } from './events/stage/transform'
 import { parseGroupsToChart } from './group'
 import { parseInitializationToChart } from './initialization'
+import { parseRushEventsToChart } from './rushEvents'
 import { parseSlidesToChart } from './slide'
 import { parseStagesToChart } from './stage'
 import { parseTimeScalesToChart } from './timeScale'
@@ -48,6 +50,7 @@ export const parseLevelDataChart = (entities: LevelDataEntity[]): Chart => {
         stagePivotEvents: [],
         stageStyleEvents: [],
         stageTransformEvents: [],
+        rushEvents: createRushEvents(),
         timeScales: [],
         slides: [],
     }
@@ -125,6 +128,8 @@ export const parseLevelDataChart = (entities: LevelDataEntity[]): Chart => {
     parseStageTransformEventsToChart(ctx, firstTransformRefs)
 
     parseTimeScalesToChart(ctx)
+
+    parseRushEventsToChart(ctx)
 
     parseSlidesToChart(ctx)
 

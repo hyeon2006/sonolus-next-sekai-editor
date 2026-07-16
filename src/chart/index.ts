@@ -6,6 +6,7 @@ import type { StageStyleEventObject } from './events/stage/style'
 import type { StageTransformEventObject } from './events/stage/transform'
 import type { Groups } from './groups'
 import type { NoteObject } from './note'
+import type { RushEvents } from './rushEvents'
 import type { Stages } from './stages'
 import type { TimeScaleObject } from './timeScale'
 
@@ -20,6 +21,7 @@ export type Chart = {
     stagePivotEvents: StagePivotEventObject[]
     stageStyleEvents: StageStyleEventObject[]
     stageTransformEvents: StageTransformEventObject[]
+    rushEvents: RushEvents
     timeScales: TimeScaleObject[]
     slides: NoteObject[][]
 }

@@ -79,6 +79,9 @@ const onDelete = (groupId: GroupId, name: string) => {
 
             removeTimeScale(transaction, entity)
         },
+        skill: undefined,
+        feverChance: undefined,
+        feverStart: undefined,
 
         cameraEventJoint: undefined,
         cameraEventConnection: undefined,

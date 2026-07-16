@@ -12,6 +12,7 @@ import { stageTransformEvent } from './events/stage/transform'
 import { note } from './note'
 import { offset } from './offset'
 import { paste } from './paste'
+import { feverChance, feverStart, skill } from './rushEvents'
 import { select } from './select'
 import { slide } from './slide'
 import { timeScale } from './timeScale'
@@ -40,6 +41,9 @@ export const tools = {
 
     bpm,
     timeScale,
+    skill,
+    feverChance,
+    feverStart,
 
     cameraEvent,
     stageMaskEvent,

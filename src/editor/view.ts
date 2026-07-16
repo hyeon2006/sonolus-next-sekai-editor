@@ -41,6 +41,9 @@ export const view = shallowReactive({
     visibilities: {
         bpm: true,
         timeScale: true,
+        skill: true,
+        feverChance: true,
+        feverStart: true,
 
         cameraEventJoint: true,
         cameraEventConnection: true,

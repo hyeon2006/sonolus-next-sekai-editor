@@ -71,6 +71,9 @@ const isVisible = (entity: Entity) => {
 
     switch (entity.type) {
         case 'bpm':
+        case 'skill':
+        case 'feverChance':
+        case 'feverStart':
         case 'cameraEventJoint':
             return true
         case 'timeScale':

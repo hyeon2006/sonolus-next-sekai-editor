@@ -8,6 +8,7 @@ import { showModal } from '../../modals'
 import InfoModal from '../../modals/InfoModal.vue'
 import LoadingModal from '../../modals/LoadingModal.vue'
 import { settings } from '../../settings'
+import { getFeverPairValidationError } from '../../state/mutations/rushEvents'
 import { storageGet, storageRemove, storageSet } from '../../storage'
 import { timeout } from '../../utils/promise'
 import { filename } from '../filename'
@@ -33,6 +34,7 @@ export const useAutoSave = () => {
 
             id = setTimeout(() => {
                 if (!enabled) return
+                if (getFeverPairValidationError(state.store.grid)) return
 
                 const levelData = serializeToLevelData(
                     state.initialLife,

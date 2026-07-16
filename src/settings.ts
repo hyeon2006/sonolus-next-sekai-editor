@@ -170,7 +170,7 @@ const settingsProperties = {
                     ],
                     ['note3', 'note2', 'note1', 'note0', 'note'],
                     ['slide4', 'slide3', 'slide2', 'slide1', 'slide0', 'slide'],
-                    ['timeScale', 'bpm'],
+                    ['feverStart', 'feverChance', 'skill', 'timeScale', 'bpm'],
                     ['groupPrev', 'groupNext', 'groupAll', 'manageGroups'],
                     [
                         'stageTransformEvent',

@@ -2,6 +2,7 @@ import type { Chart } from '../..'
 import { settings } from '../../../settings'
 import type { UscObject } from '../../../usc/objects/schema'
 import { addToGroups } from '../../groups'
+import { createRushEvents } from '../../rushEvents'
 import { addDefaultStageToStages, type Stages } from '../../stages'
 
 export const parseUscChart = (objects: UscObject[]) => {
@@ -19,6 +20,7 @@ export const parseUscChart = (objects: UscObject[]) => {
         stagePivotEvents: [],
         stageStyleEvents: [],
         stageTransformEvents: [],
+        rushEvents: createRushEvents(),
         timeScales: [],
         slides: [],
     }

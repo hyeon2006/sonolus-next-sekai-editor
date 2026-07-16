@@ -6,6 +6,11 @@ import type { StagePivotEventObject } from '../../chart/events/stage/pivot'
 import type { StageStyleEventObject } from '../../chart/events/stage/style'
 import type { StageTransformEventObject } from '../../chart/events/stage/transform'
 import type { NoteObject } from '../../chart/note'
+import type {
+    FeverChanceEventObject,
+    FeverStartEventObject,
+    SkillEventObject,
+} from '../../chart/rushEvents'
 import type { TimeScaleObject } from '../../chart/timeScale'
 import { pushState, replaceState, state } from '../../history'
 import { selectedEntities } from '../../history/selectedEntities'
@@ -32,6 +37,13 @@ import {
     toStageTransformEventJointEntity,
     type StageTransformEventJointEntity,
 } from '../../state/entities/events/joints/stage/transform'
+import {
+    toFeverChanceEntity,
+    toFeverStartEntity,
+    toSkillEntity,
+    type FeverChanceEntity,
+    type SkillEntity,
+} from '../../state/entities/rushEvents'
 import { toNoteEntity, type NoteEntity } from '../../state/entities/slides/note'
 import { toTimeScaleEntity, type TimeScaleEntity } from '../../state/entities/timeScale'
 import { addBpm, removeBpm } from '../../state/mutations/bpm'
@@ -52,6 +64,12 @@ import {
     addStageTransformEventJoint,
     removeStageTransformEventJoint,
 } from '../../state/mutations/events/stage/transform'
+import {
+    addFeverChance,
+    addFeverStart,
+    addSkill,
+    removeSkill,
+} from '../../state/mutations/rushEvents'
 import { replaceNote } from '../../state/mutations/slides/note'
 import { addTimeScale, removeTimeScale } from '../../state/mutations/timeScale'
 import { getInStoreGrid } from '../../state/store/grid'
@@ -355,6 +373,22 @@ const toMovedBpmObject = (entity: BpmEntity, beat: number): BpmObject => ({
     beat,
 })
 
+const toMovedSkillObject = (entity: SkillEntity, beat: number): SkillEventObject => ({
+    beat,
+    effect: entity.effect,
+    level: entity.level,
+    value: entity.value,
+    scale: entity.scale,
+    duration: entity.duration,
+})
+
+const toMovedFeverChanceObject = (
+    entity: FeverChanceEntity,
+    beat: number,
+): FeverChanceEventObject => ({ beat, force: entity.force })
+
+const toMovedFeverStartObject = (beat: number): FeverStartEventObject => ({ beat })
+
 const toMovedTimeScaleObject = (
     entities: Entity[],
     entity: TimeScaleEntity,
@@ -524,6 +558,12 @@ const creates: {
     bpm: (entities, entity, startLane, lane, beat) => toBpmEntity(toMovedBpmObject(entity, beat)),
     timeScale: (entities, entity, startLane, lane, beat) =>
         toTimeScaleEntity(toMovedTimeScaleObject(entities, entity, startLane, lane, beat)),
+    skill: (entities, entity, startLane, lane, beat) =>
+        toSkillEntity(toMovedSkillObject(entity, beat)),
+    feverChance: (entities, entity, startLane, lane, beat) =>
+        toFeverChanceEntity(toMovedFeverChanceObject(entity, beat)),
+    feverStart: (entities, entity, startLane, lane, beat) =>
+        toFeverStartEntity(toMovedFeverStartObject(beat)),
 
     cameraEventJoint: (entities, entity, startLane, lane, beat, focus) =>
         toCameraEventJointEntity(
@@ -598,6 +638,21 @@ const moves: {
         if (overlap) removeTimeScale(transaction, overlap)
 
         return addTimeScale(transaction, object)
+    },
+    skill: (transaction, entities, entity, startLane, lane, beat) => {
+        const object = toMovedSkillObject(entity, beat)
+        removeSkill(transaction, entity)
+        const overlap = getInStoreGrid(transaction.store.grid, 'skill', beat)?.find(
+            (event) => event.beat === beat,
+        )
+        if (overlap) removeSkill(transaction, overlap)
+        return addSkill(transaction, object)
+    },
+    feverChance: (transaction, entities, entity, startLane, lane, beat) => {
+        return addFeverChance(transaction, toMovedFeverChanceObject(entity, beat))
+    },
+    feverStart: (transaction, entities, entity, startLane, lane, beat) => {
+        return addFeverStart(transaction, toMovedFeverStartObject(beat))
     },
 
     cameraEventJoint: (transaction, entities, entity, startLane, lane, beat, focus) => {

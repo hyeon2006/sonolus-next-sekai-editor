@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { SkillEffect } from '../../../chart/rushEvents'
 import { isEditableEntity } from '.'
 import { isDynamicStages } from '../../../history/dynamicStages.ts'
 import { i18n } from '../../../i18n'
@@ -45,15 +46,18 @@ import MultiMaskLeftField from '../../../modals/form/MultiMaskLeftField.vue'
 import MultiMaskSizeField from '../../../modals/form/MultiMaskSizeField.vue'
 import MultiNoteAlphaField from '../../../modals/form/MultiNoteAlphaField.vue'
 import MultiNoteTypeField from '../../../modals/form/MultiNoteTypeField.vue'
+import MultiNumberField from '../../../modals/form/MultiNumberField.vue'
 import MultiPivotLaneField from '../../../modals/form/MultiPivotLaneField.vue'
 import MultiRightBorderStyleField from '../../../modals/form/MultiRightBorderStyleField.vue'
 import MultiRotationField from '../../../modals/form/MultiRotationField.vue'
 import MultiSfxField from '../../../modals/form/MultiSfxField.vue'
+import MultiSelectField from '../../../modals/form/MultiSelectField.vue'
 import MultiSizeField from '../../../modals/form/MultiSizeField.vue'
 import MultiSkipField from '../../../modals/form/MultiSkipField.vue'
 import MultiStageField from '../../../modals/form/MultiStageField.vue'
 import MultiTimeScaleEaseField from '../../../modals/form/MultiTimeScaleEaseField.vue'
 import MultiTimeScaleField from '../../../modals/form/MultiTimeScaleField.vue'
+import MultiToggleField from '../../../modals/form/MultiToggleField.vue'
 import MultiXTranslationField from '../../../modals/form/MultiXTranslationField.vue'
 import MultiYOffsetBeatField from '../../../modals/form/MultiYOffsetBeatField.vue'
 import MultiYOffsetField from '../../../modals/form/MultiYOffsetField.vue'
@@ -72,6 +76,12 @@ const timeScale = createModel('timeScale')
 const skip = createModel('skip')
 const timeScaleEase = createModel('timeScaleEase')
 const hideNotes = createModel('hideNotes')
+const effect = createModel('effect')
+const level = createModel('level')
+const value = createModel('value')
+const scale = createModel('scale')
+const duration = createModel('duration')
+const force = createModel('force')
 const cameraLeft = createModel('cameraLeft')
 const cameraSize = createModel('cameraSize')
 const cameraZoom = createModel('cameraZoom')
@@ -130,6 +140,42 @@ const connectorPresentation = createModel('connectorPresentation')
             <MultiSkipField v-if="types.timeScale" v-model="skip" />
             <MultiTimeScaleEaseField v-if="types.timeScale" v-model="timeScaleEase" />
             <MultiHideNotesField v-if="types.timeScale" v-model="hideNotes" />
+            <MultiSelectField
+                v-if="types.skill"
+                v-model="effect"
+                :label="i18n.rush.effect"
+                :options="[
+                    [i18n.rush.score, SkillEffect.score],
+                    [i18n.rush.heal, SkillEffect.heal],
+                    [i18n.rush.judgment, SkillEffect.judgment],
+                ]"
+            />
+            <MultiNumberField
+                v-if="types.skill"
+                v-model="level"
+                :label="i18n.rush.level"
+                :step="1"
+            />
+            <MultiNumberField
+                v-if="types.skill"
+                v-model="value"
+                :label="i18n.rush.value"
+                :step="1"
+            />
+            <MultiNumberField
+                v-if="types.skill"
+                v-model="scale"
+                :label="i18n.rush.scale"
+                step="any"
+            />
+            <MultiNumberField
+                v-if="types.skill"
+                v-model="duration"
+                :label="i18n.rush.duration"
+                :min="0"
+                step="any"
+            />
+            <MultiToggleField v-if="types.feverChance" v-model="force" :label="i18n.rush.force" />
             <MultiCameraLeftField v-if="types.cameraEventJoint" v-model="cameraLeft" />
             <MultiCameraSizeField v-if="types.cameraEventJoint" v-model="cameraSize" />
             <MultiCameraZoomField v-if="types.cameraEventJoint" v-model="cameraZoom" />

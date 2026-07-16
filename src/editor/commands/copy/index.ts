@@ -5,7 +5,7 @@ import { groups } from '../../../history/groups'
 import { initialLife } from '../../../history/initialLife'
 import { selectedEntities } from '../../../history/selectedEntities'
 import { stages } from '../../../history/stages'
-import { store } from '../../../history/store'
+import { store, withFeverPair } from '../../../history/store'
 import { i18n } from '../../../i18n'
 import { serializeToLevelDataEntities } from '../../../levelData/entities/serialize'
 import type { Entity, EntityOfType, EntityType } from '../../../state/entities'
@@ -23,7 +23,7 @@ export const copy: Command = {
     },
 
     execute() {
-        const entities = selectedEntities.value
+        const entities = withFeverPair(selectedEntities.value)
 
         if (!entities.length) {
             notify(() => i18n.value.commands.copy.noSelected)
@@ -45,6 +45,11 @@ export const copy: Command = {
                     stagePivotEvents: getEntities(entities, 'stagePivotEventJoint'),
                     stageStyleEvents: getEntities(entities, 'stageStyleEventJoint'),
                     stageTransformEvents: getEntities(entities, 'stageTransformEventJoint'),
+                    rushEvents: {
+                        skills: getEntities(entities, 'skill'),
+                        feverChances: getEntities(entities, 'feverChance'),
+                        feverStarts: getEntities(entities, 'feverStart'),
+                    },
                     groups: groups.value,
                     stages: stages.value,
                     slides: getSlides(entities),

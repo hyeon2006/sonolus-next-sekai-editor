@@ -5,6 +5,11 @@ import type { StagePivotEventObject } from '../../../chart/events/stage/pivot'
 import type { StageStyleEventObject } from '../../../chart/events/stage/style'
 import type { StageTransformEventObject } from '../../../chart/events/stage/transform'
 import type { NoteObject } from '../../../chart/note'
+import type {
+    FeverChanceEventObject,
+    FeverStartEventObject,
+    SkillEventObject,
+} from '../../../chart/rushEvents'
 import type { TimeScaleObject } from '../../../chart/timeScale'
 import { pushState, state } from '../../../history'
 import { selectedEntities } from '../../../history/selectedEntities'
@@ -16,6 +21,11 @@ import type { StageMaskEventJointEntity } from '../../../state/entities/events/j
 import type { StagePivotEventJointEntity } from '../../../state/entities/events/joints/stage/pivot'
 import type { StageStyleEventJointEntity } from '../../../state/entities/events/joints/stage/style'
 import type { StageTransformEventJointEntity } from '../../../state/entities/events/joints/stage/transform'
+import type {
+    FeverChanceEntity,
+    FeverStartEntity,
+    SkillEntity,
+} from '../../../state/entities/rushEvents'
 import type { NoteEntity } from '../../../state/entities/slides/note'
 import type { TimeScaleEntity } from '../../../state/entities/timeScale'
 import { createTransaction, type Transaction } from '../../../state/transaction'
@@ -31,6 +41,14 @@ import {
     editStageTransformEvent,
 } from '../../tools/events/stage/transform'
 import { editNote, editSelectedNote } from '../../tools/note'
+import {
+    editFeverChance,
+    editFeverStart,
+    editSelectedFeverChance,
+    editSelectedFeverStart,
+    editSelectedSkill,
+    editSkill,
+} from '../../tools/rushEvents'
 import { editSelectedTimeScale, editTimeScale } from '../../tools/timeScale'
 import { view } from '../../view'
 
@@ -42,6 +60,9 @@ export type EditableObject = Partial<
         StagePivotEventObject &
         StageStyleEventObject &
         StageTransformEventObject &
+        SkillEventObject &
+        FeverChanceEventObject &
+        FeverStartEventObject &
         NoteObject
 >
 
@@ -53,6 +74,9 @@ export type EditableEntity =
     | StagePivotEventJointEntity
     | StageStyleEventJointEntity
     | StageTransformEventJointEntity
+    | SkillEntity
+    | FeverChanceEntity
+    | FeverStartEntity
     | NoteEntity
 
 export const isEditableEntity = (entity: Entity) =>
@@ -63,6 +87,9 @@ export const isEditableEntity = (entity: Entity) =>
     entity.type === 'stagePivotEventJoint' ||
     entity.type === 'stageStyleEventJoint' ||
     entity.type === 'stageTransformEventJoint' ||
+    entity.type === 'skill' ||
+    entity.type === 'feverChance' ||
+    entity.type === 'feverStart' ||
     entity.type === 'note'
 
 export const editSelectedEditableEntities = (object: EditableObject) => {
@@ -113,6 +140,9 @@ const getEditEntity = () =>
     (editEntity ??= {
         bpm: editBpm,
         timeScale: editTimeScale,
+        skill: editSkill,
+        feverChance: editFeverChance,
+        feverStart: editFeverStart,
 
         cameraEventJoint: editCameraEvent,
         cameraEventConnection: undefined,
@@ -145,6 +175,9 @@ const getEditSelectedEntity = () =>
     (editSelectedEntity ??= {
         bpm: editSelectedBpm,
         timeScale: editSelectedTimeScale,
+        skill: editSelectedSkill,
+        feverChance: editSelectedFeverChance,
+        feverStart: editSelectedFeverStart,
 
         cameraEventJoint: editSelectedCameraEvent,
         cameraEventConnection: undefined,

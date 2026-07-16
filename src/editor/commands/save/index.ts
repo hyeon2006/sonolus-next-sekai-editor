@@ -13,6 +13,7 @@ import { i18n } from '../../../i18n'
 import { serializeToLevelData } from '../../../levelData/serialize'
 import { showModal } from '../../../modals'
 import LoadingModal from '../../../modals/LoadingModal.vue'
+import { getFeverPairValidationError } from '../../../state/mutations/rushEvents'
 import { pickFileForSave } from '../../../utils/file'
 import { timeout } from '../../../utils/promise'
 import { notify } from '../../notification'
@@ -25,6 +26,11 @@ export const save: Command = {
     },
 
     execute() {
+        if (getFeverPairValidationError(store.value.grid)) {
+            notify(() => i18n.value.commands.save.invalidFever)
+            return
+        }
+
         void showModal(LoadingModal, {
             title: () => i18n.value.commands.save.title,
             async *task() {

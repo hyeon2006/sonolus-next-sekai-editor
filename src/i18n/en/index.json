@@ -3,13 +3,29 @@
     "group": {
         "default": "Default"
     },
+    "rush": {
+        "effect": "Effect",
+        "level": "Level",
+        "value": "Heal Value",
+        "scale": "Score Multiplier",
+        "duration": "Duration (seconds)",
+        "force": "Force in Solo Play",
+        "feverChanceOrder": "Fever Chance must be before Fever Start.",
+        "feverStartOrder": "Add Fever Chance first and place Fever Start after it.",
+        "score": "Score Up",
+        "heal": "Life Up",
+        "judgment": "Accuracy Up"
+    },
     "events": {
         "event": "event",
         "cameraEvent": "Camera Event",
         "stageMaskEvent": "Stage Mask Event",
         "stagePivotEvent": "Stage Pivot Event",
         "stageStyleEvent": "Stage Style Event",
-        "stageTransformEvent": "Stage Transform Event"
+        "stageTransformEvent": "Stage Transform Event",
+        "skill": "Skill",
+        "feverChance": "Fever Chance",
+        "feverStart": "Fever Start"
     },
     "commands": {
         "bgm": {
@@ -201,7 +217,8 @@
         "save": {
             "title": "Save",
             "exporting": "Exporting level...",
-            "saved": "Saved level"
+            "saved": "Saved level",
+            "invalidFever": "Fever Chance and Fever Start must exist as one ordered pair before saving."
         },
         "scrolls": {
             "scrollLeft": {

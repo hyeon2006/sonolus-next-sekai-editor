@@ -1,5 +1,6 @@
 import type { BpmEntity } from './bpm'
 import type { EventEntity } from './events'
+import type { RushEventEntity } from './rushEvents'
 import type { SlideEntity } from './slides'
 import type { TimeScaleEntity } from './timeScale'
 
@@ -16,7 +17,7 @@ export type BaseEntity = {
     beat: number
 }
 
-export type Entity = BpmEntity | TimeScaleEntity | EventEntity | SlideEntity
+export type Entity = BpmEntity | TimeScaleEntity | EventEntity | RushEventEntity | SlideEntity
 
 export type EntityType = Entity['type']
 

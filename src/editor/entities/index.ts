@@ -10,12 +10,16 @@ import LevelEditorStageStyleEventJoint from './events/stage/style/LevelEditorSta
 import LevelEditorStageTransformEventConnection from './events/stage/transform/LevelEditorStageTransformEventConnection.vue'
 import LevelEditorStageTransformEventJoint from './events/stage/transform/LevelEditorStageTransformEventJoint.vue'
 import LevelEditorBpm from './LevelEditorBpm.vue'
+import LevelEditorRushEvent from './LevelEditorRushEvent.vue'
 import LevelEditorTimeScale from './LevelEditorTimeScale.vue'
 import LevelEditorNote from './note/LevelEditorNote.vue'
 
 export const entityComponents = {
     bpm: LevelEditorBpm,
     timeScale: LevelEditorTimeScale,
+    skill: LevelEditorRushEvent,
+    feverChance: LevelEditorRushEvent,
+    feverStart: LevelEditorRushEvent,
 
     cameraEventJoint: LevelEditorCameraEventJoint,
     cameraEventConnection: LevelEditorCameraEventConnection,

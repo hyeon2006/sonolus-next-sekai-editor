@@ -202,6 +202,9 @@ const applies: {
 } = {
     bpm: undefined,
     timeScale: editSelectedTimeScale,
+    skill: undefined,
+    feverChance: undefined,
+    feverStart: undefined,
 
     cameraEventJoint: editSelectedCameraEvent,
     cameraEventConnection: undefined,

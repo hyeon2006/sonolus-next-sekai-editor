@@ -24,7 +24,10 @@ export const event: Command = {
             stageMaskEvent: 'stagePivotEvent',
             stagePivotEvent: 'stageStyleEvent',
             stageStyleEvent: 'stageTransformEvent',
-            stageTransformEvent: 'cameraEvent',
+            stageTransformEvent: 'skill',
+            skill: 'feverChance',
+            feverChance: 'feverStart',
+            feverStart: 'cameraEvent',
         }
 
         void commands[(prev = next[toolName.value] ?? prev)].execute()

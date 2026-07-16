@@ -2,6 +2,9 @@
 const layers = {
     timeScale: 0,
     bpm: 1,
+    skill: 2,
+    feverChance: 3,
+    feverStart: 4,
 
     cameraEventConnection: 10,
     cameraEventJoint: 11,
@@ -47,6 +50,9 @@ const layers = {
 const getLayer = (entity: Entity) => {
     switch (entity.type) {
         case 'bpm':
+        case 'skill':
+        case 'feverChance':
+        case 'feverStart':
         case 'cameraEventJoint':
         case 'cameraEventConnection':
         case 'stageMaskEventJoint':
@@ -70,6 +76,9 @@ const isEntityVisibleByGroup = (entity: Entity) => {
 
     switch (entity.type) {
         case 'bpm':
+        case 'skill':
+        case 'feverChance':
+        case 'feverStart':
         case 'cameraEventJoint':
         case 'cameraEventConnection':
         case 'stageMaskEventJoint':
@@ -97,6 +106,9 @@ const isEntityVisibleByStage = (entity: Entity) => {
 
     switch (entity.type) {
         case 'bpm':
+        case 'skill':
+        case 'feverChance':
+        case 'feverStart':
         case 'cameraEventJoint':
         case 'cameraEventConnection':
         case 'timeScale':
@@ -154,6 +166,9 @@ const visibleEntities = computed(() =>
     culledEntities.value.filter((entity) => {
         switch (entity.type) {
             case 'bpm':
+            case 'skill':
+            case 'feverChance':
+            case 'feverStart':
             case 'cameraEventJoint':
             case 'stageMaskEventJoint':
             case 'stagePivotEventJoint':

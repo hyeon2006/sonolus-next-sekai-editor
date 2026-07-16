@@ -39,6 +39,7 @@ export type ResolvedGroup = {
 export type ParticleEffect = {
     transform?: Record<string, ParticleExpression>
     groups: ResolvedGroup[]
+    duration: number
 }
 
 export type NoteParticleSet = {
@@ -58,8 +59,20 @@ export type ConnectorParticleSet = {
     slotLinear?: ParticleEffect
 }
 
+export type FeverParticleSet = {
+    chanceText?: ParticleEffect
+    chanceLane?: ParticleEffect
+    feverText?: ParticleEffect
+    feverLane?: ParticleEffect
+    superFeverText?: ParticleEffect
+    superFeverLane?: ParticleEffect
+    superFeverEffect?: ParticleEffect
+    border?: ParticleEffect
+}
+
 export type PreviewParticle = {
     lane?: ParticleEffect
+    fever: FeverParticleSet
 
     normalNote: NoteParticleSet
     slideNote: NoteParticleSet
@@ -164,8 +177,16 @@ const toEffect = (effect: ParticleDataEffect, sprites: Sprite[]): ParticleEffect
         if (transform) break
     }
 
+    let duration = 0
+    for (const group of effect.groups) {
+        for (const particle of group.particles) {
+            duration = Math.max(duration, particle.start + particle.duration)
+        }
+    }
+
     return {
         transform,
+        duration,
         groups: effect.groups.map((group) => ({
             count: group.count,
             particles: group.particles.map((particle): ResolvedParticle => ({
@@ -241,6 +262,16 @@ const resolveParticle = (get: (name: string) => ParticleEffect | undefined): Pre
 
     return {
         lane,
+        fever: {
+            chanceText: get('Sekai Fever Chance Text'),
+            chanceLane: get('Sekai Fever Chance Lane'),
+            feverText: get('Sekai Fever Text'),
+            feverLane: get('Sekai Fever Lane'),
+            superFeverText: get('Sekai Super Fever Text'),
+            superFeverLane: get('Sekai Super Fever Lane'),
+            superFeverEffect: get('Sekai Super Fever Effect'),
+            border: get('Sekai Fever Border'),
+        },
 
         normalNote: {
             circular: first('Sekai Normal Note Circular', ParticleEffectName.NoteCircularTapCyan),

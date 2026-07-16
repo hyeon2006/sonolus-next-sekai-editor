@@ -3,6 +3,7 @@ import { settings } from '../../../settings.js'
 import type { Sus } from '../../../sus/parse.js'
 import { addToGroups, type Groups } from '../../groups.js'
 import type { NoteObject } from '../../note.js'
+import { createRushEvents } from '../../rushEvents.js'
 import { addDefaultStageToStages, type Stages } from '../../stages.js'
 
 export const parseSusChart = (sus: Sus) => {
@@ -24,6 +25,7 @@ export const parseSusChart = (sus: Sus) => {
         stagePivotEvents: [],
         stageStyleEvents: [],
         stageTransformEvents: [],
+        rushEvents: createRushEvents(),
         timeScales: [],
         slides: [],
     }

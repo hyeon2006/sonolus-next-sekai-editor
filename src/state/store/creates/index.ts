@@ -6,6 +6,7 @@ import { createStoreStageMaskEvents } from './events/stage/mask'
 import { createStoreStagePivotEvents } from './events/stage/pivot'
 import { createStoreStageStyleEvents } from './events/stage/style'
 import { createStoreStageTransformEvents } from './events/stage/transform'
+import { createStoreRushEvents } from './rushEvents'
 import { createStoreSlides } from './slide'
 import { createStoreTimeScales } from './timeScale'
 
@@ -14,6 +15,9 @@ export const createStore = (chart: Chart) => {
         grid: {
             bpm: new Map(),
             timeScale: new Map(),
+            skill: new Map(),
+            feverChance: new Map(),
+            feverStart: new Map(),
 
             cameraEventJoint: new Map(),
             cameraEventConnection: new Map(),
@@ -49,6 +53,7 @@ export const createStore = (chart: Chart) => {
 
     createStoreBpms(store, chart)
     createStoreTimeScales(store, chart)
+    createStoreRushEvents(store, chart)
 
     createStoreCameraEvents(store, chart)
 

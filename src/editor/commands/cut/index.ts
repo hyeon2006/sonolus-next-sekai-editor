@@ -6,7 +6,7 @@ import { groups } from '../../../history/groups'
 import { initialLife } from '../../../history/initialLife'
 import { selectedEntities } from '../../../history/selectedEntities'
 import { stages } from '../../../history/stages'
-import { store } from '../../../history/store'
+import { store, withFeverPair } from '../../../history/store'
 import { i18n } from '../../../i18n'
 import { serializeToLevelDataEntities } from '../../../levelData/entities/serialize'
 import type { Entity, EntityOfType, EntityType } from '../../../state/entities'
@@ -17,6 +17,11 @@ import { removeStageMaskEventJoint } from '../../../state/mutations/events/stage
 import { removeStagePivotEventJoint } from '../../../state/mutations/events/stage/pivot'
 import { removeStageStyleEventJoint } from '../../../state/mutations/events/stage/style'
 import { removeStageTransformEventJoint } from '../../../state/mutations/events/stage/transform.ts'
+import {
+    removeFeverChance,
+    removeFeverStart,
+    removeSkill,
+} from '../../../state/mutations/rushEvents'
 import { removeNote } from '../../../state/mutations/slides/note'
 import { removeTimeScale } from '../../../state/mutations/timeScale'
 import { createStore } from '../../../state/store/creates'
@@ -33,7 +38,7 @@ export const cut: Command = {
     },
 
     execute() {
-        const entities = selectedEntities.value
+        const entities = withFeverPair(selectedEntities.value)
 
         if (!entities.length) {
             notify(() => i18n.value.commands.cut.noSelected)
@@ -56,6 +61,11 @@ export const cut: Command = {
                     stagePivotEvents: getEntities(entities, 'stagePivotEventJoint'),
                     stageStyleEvents: getEntities(entities, 'stageStyleEventJoint'),
                     stageTransformEvents: getEntities(entities, 'stageTransformEventJoint'),
+                    rushEvents: {
+                        skills: getEntities(entities, 'skill'),
+                        feverChances: getEntities(entities, 'feverChance'),
+                        feverStarts: getEntities(entities, 'feverStart'),
+                    },
                     groups: groups.value,
                     stages: stages.value,
                     slides: getSlides(entities),
@@ -118,6 +128,9 @@ const canRemoves: {
 } = {
     bpm: (entity) => entity.beat > 0,
     timeScale: undefined,
+    skill: undefined,
+    feverChance: undefined,
+    feverStart: undefined,
 
     cameraEventJoint: undefined,
     cameraEventConnection: undefined,
@@ -143,6 +156,9 @@ const removes: {
 } = {
     bpm: removeBpm,
     timeScale: removeTimeScale,
+    skill: removeSkill,
+    feverChance: removeFeverChance,
+    feverStart: removeFeverStart,
 
     cameraEventJoint: removeCameraEventJoint,
     cameraEventConnection: undefined,

@@ -8,6 +8,7 @@ import { serializeStagePivotEventsToLevelDataEntities } from './events/stage/piv
 import { serializeStageStyleEventsToLevelDataEntities } from './events/stage/style'
 import { serializeStageTransformEventsToLevelDataEntities } from './events/stage/transform'
 import { serializeGroupsToLevelDataEntities } from './group'
+import { serializeRushEventsToLevelDataEntities } from './rushEvents'
 import { serializeSlidesToLevelDataEntities } from './slide'
 import { serializeStagesToLevelDataEntities } from './stage'
 import { serializeTimeScalesToLevelDataEntities } from './timeScale'
@@ -80,6 +81,8 @@ export const serializeToLevelDataEntities = (
         getName,
     )
 
+    const rushEventEntities = serializeRushEventsToLevelDataEntities(store)
+
     return [
         initialization,
         ...bpmEntities,
@@ -91,6 +94,7 @@ export const serializeToLevelDataEntities = (
         ...stageStyleEventEntities,
         ...stageTransformEventEntities,
         ...timeScaleEntities,
+        ...rushEventEntities,
         ...slideEntities,
     ]
 }

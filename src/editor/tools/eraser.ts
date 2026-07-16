@@ -1,6 +1,7 @@
 import type { Tool } from '.'
 import { pushState, replaceState, state } from '../../history'
 import { selectedEntities } from '../../history/selectedEntities'
+import { withFeverPair } from '../../history/store'
 import { i18n } from '../../i18n'
 import type { Entity } from '../../state/entities'
 import type { RemoveMutation } from '../../state/mutations'
@@ -10,6 +11,7 @@ import { removeStageMaskEventJoint } from '../../state/mutations/events/stage/ma
 import { removeStagePivotEventJoint } from '../../state/mutations/events/stage/pivot'
 import { removeStageStyleEventJoint } from '../../state/mutations/events/stage/style'
 import { removeStageTransformEventJoint } from '../../state/mutations/events/stage/transform'
+import { removeFeverChance, removeFeverStart, removeSkill } from '../../state/mutations/rushEvents'
 import { removeNote } from '../../state/mutations/slides/note'
 import { removeTimeScale } from '../../state/mutations/timeScale'
 import { createTransaction } from '../../state/transaction'
@@ -121,6 +123,9 @@ const canRemoves: {
 } = {
     bpm: (entity) => entity.beat > 0,
     timeScale: undefined,
+    skill: undefined,
+    feverChance: undefined,
+    feverStart: undefined,
 
     cameraEventJoint: undefined,
     cameraEventConnection: undefined,
@@ -146,6 +151,9 @@ const removes: {
 } = {
     bpm: removeBpm,
     timeScale: removeTimeScale,
+    skill: removeSkill,
+    feverChance: removeFeverChance,
+    feverStart: removeFeverStart,
 
     cameraEventJoint: removeCameraEventJoint,
     cameraEventConnection: undefined,
@@ -169,7 +177,7 @@ const removes: {
 const canRemove = (entity: Entity) => canRemoves[entity.type]?.(entity as never) ?? true
 
 const remove = (entities: Entity[]) => {
-    entities = entities.filter(canRemove)
+    entities = withFeverPair(entities).filter(canRemove)
     if (!entities.length) {
         replaceState({
             ...state.value,

@@ -34,6 +34,7 @@ import { play } from './play'
 import { properties } from './properties'
 import { redo } from './redo'
 import { reset } from './reset'
+import { feverChance, feverStart, skill } from './rushEvents'
 import { save } from './save'
 import { scrollDown } from './scrolls/scrollDown'
 import { scrollLeft } from './scrolls/scrollLeft'
@@ -124,6 +125,9 @@ export const commands = {
 
     bpm,
     timeScale,
+    skill,
+    feverChance,
+    feverStart,
 
     manageGroups,
     groupPrev,

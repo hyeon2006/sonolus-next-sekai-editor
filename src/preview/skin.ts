@@ -153,8 +153,25 @@ export type PreviewSkin = {
     judgments: JudgmentSpriteSet[]
 
     sekaiStage?: Sprite
+    sekaiStageFever?: Sprite
+    sekaiStageFeverTablet?: Sprite
 
     simLine?: Sprite
+
+    feverGaugeYellow?: Sprite
+    feverGaugeRainbow?: Sprite
+    feverGaugeBackground?: Sprite
+    feverGaugeBackgroundTablet?: Sprite
+    feverText?: Sprite
+    superFeverText?: Sprite
+    superFeverTextTablet?: Sprite
+
+    skillBarScore?: Sprite
+    skillBarLife?: Sprite
+    skillBarJudgment?: Sprite
+    skillNumbers: (Sprite | undefined)[]
+    skillIcons: (Sprite | undefined)[]
+    skillJudgmentLine?: Sprite
 
     normalNote: NoteSpriteSet
     slideNote: NoteSpriteSet
@@ -336,8 +353,30 @@ const resolveSkin = (get: SpriteGetter): PreviewSkin => {
         ),
 
         sekaiStage: get('Sekai Stage'),
+        sekaiStageFever: get('Sekai Stage Fever'),
+        sekaiStageFeverTablet: first('Sekai Stage Fever Tablet', 'Sekai Stage Fever'),
 
         simLine: get(SkinSpriteName.SimultaneousConnectionNeutral),
+
+        feverGaugeYellow: get('Sekai Fever Gauge Yellow'),
+        feverGaugeRainbow: get('Sekai Fever Gauge Rainbow'),
+        feverGaugeBackground: get('Sekai Fever Gauge Background'),
+        feverGaugeBackgroundTablet: first(
+            'Sekai Fever Gauge Background Tablet',
+            'Sekai Fever Gauge Background',
+        ),
+        feverText: get('Sekai Fever Text'),
+        superFeverText: get('Sekai Super Fever Text'),
+        superFeverTextTablet: first('Sekai Super Fever Text Tablet', 'Sekai Super Fever Text'),
+
+        skillBarScore: get('Skill Bar Score'),
+        skillBarLife: get('Skill Bar Life'),
+        skillBarJudgment: get('Skill Bar Judgment'),
+        skillNumbers: [...Array(18).keys()].map((i) =>
+            first(`Skill Number ${i}`, `UI Number ${i}`),
+        ),
+        skillIcons: [...Array(5).keys()].map((i) => get(`Skill Icon ${i + 1}`)),
+        skillJudgmentLine: get('Skill Judgment Line'),
 
         normalNote: {
             body: firstBody(normalBody, cyanBody, cyanFallback),

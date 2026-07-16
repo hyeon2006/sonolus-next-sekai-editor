@@ -25,6 +25,20 @@ export const getAllEntities = () => {
     return entities
 }
 
+export const withFeverPair = (entities: Entity[]) => {
+    if (!entities.some((entity) => entity.type === 'feverChance' || entity.type === 'feverStart')) {
+        return entities
+    }
+
+    return [
+        ...new Set([
+            ...entities,
+            ...[...store.value.grid.feverChance.values()].flatMap((bucket) => [...bucket]),
+            ...[...store.value.grid.feverStart.values()].flatMap((bucket) => [...bucket]),
+        ]),
+    ]
+}
+
 export const cullEntities = <T extends EntityType>(type: T, minKey: number, maxKey: number) => {
     if (!Number.isFinite(maxKey)) maxKey = minKey
 

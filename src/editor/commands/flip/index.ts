@@ -72,6 +72,9 @@ const flips: {
                 ? -entity.editorLane
                 : entity.editorLane,
         }),
+    skill: undefined,
+    feverChance: undefined,
+    feverStart: undefined,
 
     cameraEventJoint: (transaction, entities, entity) =>
         editSelectedCameraEvent(transaction, entity, {

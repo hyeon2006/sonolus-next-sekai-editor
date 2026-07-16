@@ -1,6 +1,7 @@
 import { computed, ref, shallowReactive } from 'vue'
 import type { Chart } from '../chart'
 import { addToGroups, type Groups } from '../chart/groups'
+import { createRushEvents } from '../chart/rushEvents'
 import { addDefaultStageToStages, type Stages } from '../chart/stages'
 import { switchToolTo } from '../editor/tools'
 import { i18n } from '../i18n'
@@ -35,6 +36,7 @@ const createDefaultChart = (): Chart => {
         stagePivotEvents: [],
         stageStyleEvents: [],
         stageTransformEvents: [],
+        rushEvents: createRushEvents(),
         timeScales: [],
         slides: [],
     }

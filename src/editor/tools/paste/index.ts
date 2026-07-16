@@ -8,6 +8,11 @@ import type { StageTransformEventObject } from '../../../chart/events/stage/tran
 import type { GroupId } from '../../../chart/groups'
 import type { Chart } from '../../../chart/index.ts'
 import type { FlickDirection, NoteObject } from '../../../chart/note'
+import type {
+    FeverChanceEventObject,
+    FeverStartEventObject,
+    SkillEventObject,
+} from '../../../chart/rushEvents'
 import type { StageId } from '../../../chart/stages'
 import type { TimeScaleObject } from '../../../chart/timeScale'
 import { clipboardEntry, updateClipboard } from '../../../clipboard/index.ts'
@@ -38,6 +43,13 @@ import {
     toStageTransformEventJointEntity,
     type StageTransformEventJointEntity,
 } from '../../../state/entities/events/joints/stage/transform.ts'
+import {
+    toFeverChanceEntity,
+    toFeverStartEntity,
+    toSkillEntity,
+    type FeverChanceEntity,
+    type SkillEntity,
+} from '../../../state/entities/rushEvents'
 import { createSlideId } from '../../../state/entities/slides'
 import { toNoteEntity, type NoteEntity } from '../../../state/entities/slides/note'
 import { toTimeScaleEntity, type TimeScaleEntity } from '../../../state/entities/timeScale'
@@ -47,6 +59,16 @@ import { addStageMaskEventJoint } from '../../../state/mutations/events/stage/ma
 import { addStagePivotEventJoint } from '../../../state/mutations/events/stage/pivot'
 import { addStageStyleEventJoint } from '../../../state/mutations/events/stage/style'
 import { addStageTransformEventJoint } from '../../../state/mutations/events/stage/transform.ts'
+import {
+    addFeverChance,
+    addFeverStart,
+    addSkill,
+    getFeverChance,
+    getFeverStart,
+    removeFeverChance,
+    removeFeverStart,
+    removeSkill,
+} from '../../../state/mutations/rushEvents'
 import { addNote } from '../../../state/mutations/slides/note'
 import { addTimeScale, removeTimeScale } from '../../../state/mutations/timeScale'
 import { getInStoreGrid } from '../../../state/store/grid'
@@ -129,6 +151,7 @@ export const paste: Tool = {
 
         const lane = xToLane(x)
         const beatOffset = yToBeatOffset(y, data.beat)
+        prepareFeverPairPaste(transaction, entities, beatOffset)
 
         const selectedEntities: Entity[] = []
         for (const entity of entities) {
@@ -253,6 +276,7 @@ export const paste: Tool = {
 
         const lane = xToLane(x)
         const beatOffset = yToBeatOffset(y, active.beat)
+        prepareFeverPairPaste(transaction, active.entities, beatOffset)
 
         const selectedEntities: Entity[] = []
         for (const entity of active.entities) {
@@ -312,6 +336,9 @@ const transform = (chart: Chart) => {
     return [
         ...chart.bpms.map(toBpmEntity),
         ...chart.timeScales.map(mapGroupId).map(toTimeScaleEntity),
+        ...chart.rushEvents.skills.map(toSkillEntity),
+        ...chart.rushEvents.feverChances.map(toFeverChanceEntity),
+        ...chart.rushEvents.feverStarts.map(toFeverStartEntity),
 
         ...chart.cameraEvents.map(toCameraEventJointEntity),
 
@@ -353,6 +380,22 @@ const toMovedBpmObject = (entity: BpmEntity, beat: number): BpmObject => ({
     ...entity,
     beat,
 })
+
+const toMovedSkillObject = (entity: SkillEntity, beat: number): SkillEventObject => ({
+    beat,
+    effect: entity.effect,
+    level: entity.level,
+    value: entity.value,
+    scale: entity.scale,
+    duration: entity.duration,
+})
+
+const toMovedFeverChanceObject = (
+    entity: FeverChanceEntity,
+    beat: number,
+): FeverChanceEventObject => ({ beat, force: entity.force })
+
+const toMovedFeverStartObject = (beat: number): FeverStartEventObject => ({ beat })
 
 const toMovedTimeScaleObject = (
     entities: Entity[],
@@ -496,6 +539,12 @@ const creates: {
     bpm: (entities, entity, startLane, lane, beat) => toBpmEntity(toMovedBpmObject(entity, beat)),
     timeScale: (entities, entity, startLane, lane, beat, flip) =>
         toTimeScaleEntity(toMovedTimeScaleObject(entities, entity, startLane, lane, beat, flip)),
+    skill: (entities, entity, startLane, lane, beat) =>
+        toSkillEntity(toMovedSkillObject(entity, beat)),
+    feverChance: (entities, entity, startLane, lane, beat) =>
+        toFeverChanceEntity(toMovedFeverChanceObject(entity, beat)),
+    feverStart: (entities, entity, startLane, lane, beat) =>
+        toFeverStartEntity(toMovedFeverStartObject(beat)),
 
     cameraEventJoint: (entities, entity, startLane, lane, beat, flip) =>
         toCameraEventJointEntity(toMovedCameraEventObject(entity, startLane, lane, beat, flip)),
@@ -563,6 +612,20 @@ const pastes: {
 
         return addTimeScale(transaction, object)
     },
+    skill: (transaction, entities, entity, startLane, lane, beat) => {
+        const object = toMovedSkillObject(entity, beat)
+        const overlap = getInStoreGrid(transaction.store.grid, 'skill', beat)?.find(
+            (event) => event.beat === beat,
+        )
+        if (overlap) removeSkill(transaction, overlap)
+        return addSkill(transaction, object)
+    },
+    feverChance: (transaction, entities, entity, startLane, lane, beat) => {
+        return addFeverChance(transaction, toMovedFeverChanceObject(entity, beat))
+    },
+    feverStart: (transaction, entities, entity, startLane, lane, beat) => {
+        return addFeverStart(transaction, toMovedFeverStartObject(beat))
+    },
 
     cameraEventJoint: (transaction, entities, entity, startLane, lane, beat, flip) => {
         if (!isDynamicStages.value) return
@@ -615,4 +678,24 @@ const pastes: {
         return addNote(transaction, entity.slideId, object)
     },
     connector: undefined,
+}
+
+const prepareFeverPairPaste = (
+    transaction: Transaction,
+    entities: Entity[],
+    beatOffset: number,
+) => {
+    const chanceToPaste = entities.find((entity) => entity.type === 'feverChance')
+    const startToPaste = entities.find((entity) => entity.type === 'feverStart')
+    if (!chanceToPaste || !startToPaste) return
+    if (chanceToPaste.beat + beatOffset < 0 || startToPaste.beat + beatOffset < 0) return
+
+    const chance = getFeverChance(transaction.store.grid)
+    if (chance) {
+        removeFeverChance(transaction, chance)
+        return
+    }
+
+    const start = getFeverStart(transaction.store.grid)
+    if (start) removeFeverStart(transaction, start)
 }

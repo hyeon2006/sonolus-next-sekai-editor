@@ -1,3 +1,4 @@
+import type { SkillEffectValue } from '../../chart/rushEvents'
 import type { CameraChange, FlickDirectionValue } from './layout'
 import type { EaseTypeValue } from './math'
 import type { TimescaleGroup } from './timescale'
@@ -101,6 +102,23 @@ export type PreviewSimLine = {
     right: PreviewNote
 }
 
+export type PreviewSkill = {
+    time: number
+    effect: SkillEffectValue
+    level: number
+    value: number
+    scale: number
+    duration: number
+    index: number
+}
+
+export type PreviewFever = {
+    chanceTime: number
+    startTime: number
+    force: boolean
+    noteTimes: number[]
+}
+
 export type StageMaskEvent = {
     time: number
     lane: number
@@ -157,6 +175,8 @@ export type PreviewChart = {
     connectors: PreviewConnector[]
     slides: PreviewSlide[]
     simLines: PreviewSimLine[]
+    skills: PreviewSkill[]
+    fever?: PreviewFever
     cameras: CameraChange[]
     groups: TimescaleGroup[]
     stages: PreviewStage[]
