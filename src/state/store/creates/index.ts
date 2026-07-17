@@ -33,6 +33,7 @@ export const createStore = (chart: Chart) => {
             note: new Map(),
             connector: new Map(),
         },
+        guideArts: [],
         globalEventRanges: {},
         stageEventRanges: {
             stageMaskEventJoint: new Map(),

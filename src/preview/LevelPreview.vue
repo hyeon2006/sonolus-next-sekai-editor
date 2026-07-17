@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, shallowRef, useTemplateRef, watch } from 'vue'
 import { view } from '../editor/view'
-import { state } from '../history'
+import { bpms } from '../history/bpms'
+import { isDynamicStages } from '../history/dynamicStages'
+import { groups } from '../history/groups'
+import { stages } from '../history/stages'
+import { store } from '../history/store'
 import { isPlaying } from '../player'
 import { buildPreviewChart } from './engine/chart'
 import { TARGET_ASPECT_RATIO } from './engine/layout'
@@ -26,7 +30,51 @@ const skin = shallowRef<LoadedSkin>()
 const particle = shallowRef<LoadedParticle>()
 const status = ref<'loading' | 'missing' | 'error' | 'ready'>('loading')
 
-const chart = computed(() => buildPreviewChart(state.value, noteSpeed.value))
+let chartCache:
+    | {
+          isDynamicStages: boolean
+          store: typeof store.value
+          bpms: typeof bpms.value
+          groups: typeof groups.value
+          stages: typeof stages.value
+          noteSpeed: number
+          chart: ReturnType<typeof buildPreviewChart>
+      }
+    | undefined
+
+const chart = computed(() => {
+    if (
+        chartCache?.isDynamicStages === isDynamicStages.value &&
+        chartCache.store === store.value &&
+        chartCache.bpms === bpms.value &&
+        chartCache.groups === groups.value &&
+        chartCache.stages === stages.value &&
+        chartCache.noteSpeed === noteSpeed.value
+    )
+        return chartCache.chart
+
+    const value = buildPreviewChart(
+        {
+            isDynamicStages: isDynamicStages.value,
+            store: store.value,
+            bpms: bpms.value,
+            groups: groups.value,
+            stages: stages.value,
+        },
+        noteSpeed.value,
+    )
+
+    chartCache = {
+        isDynamicStages: isDynamicStages.value,
+        store: store.value,
+        bpms: bpms.value,
+        groups: groups.value,
+        stages: stages.value,
+        noteSpeed: noteSpeed.value,
+        chart: value,
+    }
+    return value
+})
 
 let renderer: PreviewRenderer | undefined
 
@@ -179,6 +227,21 @@ const onSpeedKeydown = (event: KeyboardEvent) => {
 }
 
 let rafId = 0
+let lastRender:
+    | {
+          renderer: PreviewRenderer
+          skin: LoadedSkin
+          particle: LoadedParticle | undefined
+          chart: ReturnType<typeof buildPreviewChart>
+          now: number
+          width: number
+          height: number
+          displayWidth: number
+          displayHeight: number
+          noteSpeed: number
+          showEffects: boolean
+      }
+    | undefined
 
 const getRenderSize = (requestedScale: number) => {
     if (!renderer) return
@@ -202,20 +265,53 @@ const onFrame = () => {
     const scale = (devicePixelRatio || 1) * renderScale.value
     const renderSize = getRenderSize(scale)
     if (!renderSize) return
+    const chartValue = chart.value
+    const skinValue = skin.value
+    const particleValue = particle.value
+    const now = view.cursorTime
+
+    if (
+        lastRender?.renderer === renderer &&
+        lastRender.skin === skinValue &&
+        lastRender.particle === particleValue &&
+        lastRender.chart === chartValue &&
+        lastRender.now === now &&
+        lastRender.width === renderSize.width &&
+        lastRender.height === renderSize.height &&
+        lastRender.displayWidth === canvasWidth.value &&
+        lastRender.displayHeight === canvasHeight.value &&
+        lastRender.noteSpeed === noteSpeed.value &&
+        lastRender.showEffects === showEffects.value
+    )
+        return
 
     renderPreviewFrame(
         renderer,
-        skin.value.skin,
-        chart.value,
-        view.cursorTime,
+        skinValue.skin,
+        chartValue,
+        now,
         renderSize.width,
         renderSize.height,
         canvasWidth.value,
         canvasHeight.value,
         noteSpeed.value,
         showEffects.value,
-        particle.value?.particle,
+        particleValue?.particle,
     )
+
+    lastRender = {
+        renderer,
+        skin: skinValue,
+        particle: particleValue,
+        chart: chartValue,
+        now,
+        width: renderSize.width,
+        height: renderSize.height,
+        displayWidth: canvasWidth.value,
+        displayHeight: canvasHeight.value,
+        noteSpeed: noteSpeed.value,
+        showEffects: showEffects.value,
+    }
 }
 
 onMounted(() => {

@@ -9,6 +9,7 @@ import { stageMaskEvent } from './events/stage/mask'
 import { stagePivotEvent } from './events/stage/pivot'
 import { stageStyleEvent } from './events/stage/style'
 import { stageTransformEvent } from './events/stage/transform'
+import { guideArt } from './guideArt'
 import { note } from './note'
 import { offset } from './offset'
 import { paste } from './paste'
@@ -34,6 +35,7 @@ export const tools = {
     eraser,
     brush,
     paste,
+    guideArt,
 
     note,
     slide,

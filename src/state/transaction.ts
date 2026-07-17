@@ -23,6 +23,7 @@ export const createTransaction = (state: State) => {
     return {
         store: {
             grid: grid.accessor,
+            guideArts: state.store.guideArts,
             globalEventRanges,
             stageEventRanges: stageEventRanges.accessor,
             slides: slides.accessor,
@@ -34,6 +35,7 @@ export const createTransaction = (state: State) => {
 
         addToGroup: (groupId: GroupId) => {
             if (!settings.autoAddGroup) return
+            if (groups) return
 
             lastGroup ??= [...state.groups.keys()].at(-1)
             if (groupId !== lastGroup) return
@@ -62,6 +64,7 @@ export const createTransaction = (state: State) => {
                         ...state.store.grid,
                         ...grid.value,
                     },
+                    guideArts: state.store.guideArts,
                     globalEventRanges,
                     stageEventRanges: {
                         ...state.store.stageEventRanges,

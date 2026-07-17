@@ -3,9 +3,10 @@ import { i18n } from '../../i18n'
 import { pickFile } from '../../utils/file'
 import BaseField from './BaseField.vue'
 
-defineProps<{
+const props = defineProps<{
     label: string
     value: string | undefined
+    accept?: string
 }>()
 
 const emit = defineEmits<{
@@ -13,7 +14,7 @@ const emit = defineEmits<{
 }>()
 
 const onClick = async () => {
-    const file = await pickFile()
+    const file = await pickFile(props.accept)
     if (!file) return
 
     emit('select', file)

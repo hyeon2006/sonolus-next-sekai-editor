@@ -143,6 +143,17 @@ import LevelEditorStageMaskEventInfinities from './events/stage/mask/LevelEditor
 import LevelEditorStagePivotEventInfinities from './events/stage/pivot/LevelEditorStagePivotEventInfinities.vue'
 import LevelEditorStageStyleEventInfinities from './events/stage/style/LevelEditorStageStyleEventInfinities.vue'
 import LevelEditorStageTransformEventInfinities from './events/stage/transform/LevelEditorStageTransformEventInfinities.vue'
+import LevelEditorGuideArts from './LevelEditorGuideArts.vue'
+
+type VisibleEntityInfo = {
+    entity: Entity
+    isSelected: boolean
+    isHovered: boolean
+    isVisibleByGroup: boolean
+    isVisibleByStage: boolean
+    isVisibleByType: boolean
+    layer: number
+}
 
 const sortedInfinities = computed(() =>
     infinities.sort(([a], [b]) => +view.visibilities[a] - +view.visibilities[b]),
@@ -174,16 +185,36 @@ const visibleEntities = computed(() =>
     }),
 )
 
+const selectedEntitySet = computed(() => new Set(selectedEntities.value))
+const hoveredEntitySet = computed(() => new Set(hoveredEntities.value))
+
 const visibleEntityInfos = computed(() => {
-    let entities = visibleEntities.value.map((entity) => ({
-        entity,
-        isSelected: selectedEntities.value.includes(entity),
-        isHovered: hoveredEntities.value.includes(entity),
-        isVisibleByGroup: isEntityVisibleByGroup(entity),
-        isVisibleByStage: isEntityVisibleByStage(entity),
-        isVisibleByType: view.visibilities[entity.type],
-        layer: getLayer(entity),
-    }))
+    let entities: VisibleEntityInfo[] = []
+
+    for (const entity of visibleEntities.value) {
+        const isSelected = selectedEntitySet.value.has(entity)
+        const isHovered = hoveredEntitySet.value.has(entity)
+
+        if (
+            entity.type === 'note' &&
+            entity.noteType === 'anchor' &&
+            entity.isFake &&
+            entity.connectorType === 'guide' &&
+            !isSelected &&
+            !isHovered
+        )
+            continue
+
+        entities.push({
+            entity,
+            isSelected,
+            isHovered,
+            isVisibleByGroup: isEntityVisibleByGroup(entity),
+            isVisibleByStage: isEntityVisibleByStage(entity),
+            isVisibleByType: view.visibilities[entity.type],
+            layer: getLayer(entity),
+        })
+    }
 
     if (!settings.showOtherGroups) {
         entities = entities.filter((entity) => entity.isVisibleByGroup)
@@ -197,15 +228,15 @@ const visibleEntityInfos = computed(() => {
         entities = entities.filter((entity) => entity.isVisibleByType)
     }
 
-    return entities.sort(
-        (a, b) =>
-            +a.isSelected - +b.isSelected ||
-            +(a.isVisibleByGroup && a.isVisibleByStage && a.isVisibleByType) -
-                +(b.isVisibleByGroup && b.isVisibleByStage && b.isVisibleByType) ||
-            a.layer - b.layer ||
-            b.entity.beat - a.entity.beat,
-    )
+    return entities.sort(compareEntityInfos)
 })
+
+const compareEntityInfos = (a: VisibleEntityInfo, b: VisibleEntityInfo) =>
+    +a.isSelected - +b.isSelected ||
+    +(a.isVisibleByGroup && a.isVisibleByStage && a.isVisibleByType) -
+        +(b.isVisibleByGroup && b.isVisibleByStage && b.isVisibleByType) ||
+    a.layer - b.layer ||
+    b.entity.beat - a.entity.beat
 </script>
 
 <template>
@@ -226,4 +257,6 @@ const visibleEntityInfos = computed(() => {
         :is-highlighted="isSelected || isHovered"
         :opacity="isVisibleByGroup && isVisibleByStage && isVisibleByType ? 1 : 0.25"
     />
+
+    <LevelEditorGuideArts />
 </template>

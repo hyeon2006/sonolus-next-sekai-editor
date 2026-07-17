@@ -16,6 +16,7 @@ import {
     type NoteKindValue,
     type PreviewChart,
     type PreviewConnector,
+    type PreviewConnectorIndex,
     type PreviewNote,
     type PreviewSimLine,
     type PreviewSlide,
@@ -24,6 +25,11 @@ import {
     type StageStyleEvent,
 } from './model'
 import { createTimescaleGroup, preemptTime, scaledTimeAt, type TimescaleChange } from './timescale'
+
+export type PreviewChartState = Pick<
+    State,
+    'isDynamicStages' | 'store' | 'bpms' | 'groups' | 'stages'
+>
 
 const flickDirections: Record<string, FlickDirectionValue> = {
     none: FlickDirection.upOmni,
@@ -76,7 +82,7 @@ const getStoreEntities = <T extends EntityType>(
     return [...entities]
 }
 
-export const buildPreviewChart = (state: State, noteSpeed: number): PreviewChart => {
+export const buildPreviewChart = (state: PreviewChartState, noteSpeed: number): PreviewChart => {
     const bpms = state.bpms
     const toTime = (beat: number) => beatToTime(bpms, beat)
     const secondsPerBeat = (beat: number) => findIntegral(bpms, 'x', Math.max(0, beat)).s
@@ -289,7 +295,7 @@ export const buildPreviewChart = (state: State, noteSpeed: number): PreviewChart
                 targetScaledTime: 0,
             }
             previewNotes.set(note, previewNote)
-            notes.push(previewNote)
+            if (kind !== NoteKind.anchor) notes.push(previewNote)
 
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
             const group = groups[groupIndex]!
@@ -425,11 +431,29 @@ export const buildPreviewChart = (state: State, noteSpeed: number): PreviewChart
 
     notes.sort((a, b) => a.targetTime - b.targetTime)
     connectors.sort((a, b) => a.head.targetTime - b.head.targetTime)
+    const indexedConnectors = createGuideConnectorIndexes(connectors)
+    const guideArts = state.store.guideArts.map((guideArt) => {
+        const groupIndex = groupIndexes.get(guideArt.groupId) ?? 0
+
+        return {
+            guideArt,
+            groupIndex,
+            altGroupIndex:
+                guideArt.kind === 'video'
+                    ? (groupIndexes.get(guideArt.altGroupId) ?? groupIndex)
+                    : groupIndex,
+            stageIndex: stageIndexes.get(guideArt.stageId) ?? -1,
+            frameConnectors: new Map<number, PreviewConnector[]>(),
+        }
+    })
 
     return {
         isDynamicStages,
+        bpms,
         notes,
-        connectors,
+        connectors: indexedConnectors.fallback,
+        guideConnectorIndexes: indexedConnectors.indexes,
+        guideArts,
         slides,
         simLines,
         cameras,
@@ -438,6 +462,68 @@ export const buildPreviewChart = (state: State, noteSpeed: number): PreviewChart
         hasStageTransforms,
     }
 }
+
+const createGuideConnectorIndexes = (connectors: PreviewConnector[]) => {
+    const candidates = new Map<number, PreviewConnector[]>()
+    const fallback: PreviewConnector[] = []
+
+    for (const connector of connectors) {
+        const groupIndex = connector.segmentHead.groupIndex
+        if (
+            connector.kind < ConnectorKind.guideNeutral ||
+            connector.head.isAttached ||
+            connector.tail.isAttached ||
+            connector.head.groupIndex !== groupIndex ||
+            connector.tail.groupIndex !== groupIndex ||
+            connector.activeHead ||
+            connector.activeTail ||
+            connector.throughJudgeLine
+        ) {
+            fallback.push(connector)
+            continue
+        }
+
+        const group = candidates.get(groupIndex)
+        if (group) {
+            group.push(connector)
+        } else {
+            candidates.set(groupIndex, [connector])
+        }
+    }
+
+    const indexes: PreviewConnectorIndex[] = []
+
+    for (const [groupIndex, groupConnectors] of candidates) {
+        groupConnectors.sort(
+            (a, b) => getConnectorSpawnScaledTime(a) - getConnectorSpawnScaledTime(b),
+        )
+
+        const endTimes = groupConnectors.map((connector) =>
+            Math.max(connector.head.targetTime, connector.tail.targetTime),
+        )
+        if (
+            endTimes.some(
+                (endTime, index) =>
+                    index > 0 && endTime < (endTimes[index - 1] ?? Number.NEGATIVE_INFINITY),
+            )
+        ) {
+            fallback.push(...groupConnectors)
+            continue
+        }
+
+        indexes.push({
+            groupIndex,
+            connectors: groupConnectors,
+            spawnScaledTimes: Float64Array.from(groupConnectors, getConnectorSpawnScaledTime),
+            endTimes: Float64Array.from(endTimes),
+        })
+    }
+
+    return { fallback, indexes }
+}
+
+const getConnectorSpawnScaledTime = (connector: PreviewConnector) =>
+    Math.min(connector.head.targetScaledTime, connector.tail.targetScaledTime)
 
 export const attachEasedFrac = (note: PreviewNote) => {
     if (!note.attachHead || !note.attachTail) return 0

@@ -610,6 +610,12 @@
             "erasing": "Erasing {0} objects",
             "erased": "Erased {0} objects"
         },
+        "guideArt": {
+            "title": "Place Guide Art",
+            "placed": "Placed Guide art",
+            "placedSegments": "Placed {0} Guide art segments · width {1} lanes · length {2} beats · fixed speed {3}",
+            "overlappingTimeScale": "The Guide art interval overlaps an existing Time Scale in the current group. Choose another position or edit the existing Time Scale first."
+        },
         "note": {
             "title": "Note #{0}",
             "adding": "Adding {0} Note objects",
@@ -692,6 +698,36 @@
     },
     "utilities": {
         "title": "Utilities",
+        "guideArt": {
+            "title": "Media to Guide Art",
+            "file": "Image or Video",
+            "widthLanes": "Width (lanes)",
+            "columns": "Horizontal resolution",
+            "resolution": "Converted resolution: {0}x{1}",
+            "fps": "Video sampling FPS",
+            "start": "Video start (seconds)",
+            "end": "Video end (seconds)",
+            "compatibility": "Compatibility mode",
+            "compatibilityNoteSpeed": "Reference note speed",
+            "compatibilityHelp": "Compatibility mode uses only plain Time Scale values: no extra group, no skips, no note hiding, and no fixed note speed. The art displays correctly at the reference note speed, and the outgoing frame may briefly scroll off between frames.",
+            "entranceDuration": "Entrance duration (seconds)",
+            "holdDuration": "Hold duration (seconds)",
+            "exitDuration": "Exit duration (seconds)",
+            "targetGroup": "Target group: {0}",
+            "anchorHelp": "The media is centered horizontally and starts on the beat nearest to the clicked chart position.",
+            "fitHelp": "The entered lane width is preserved while length, Time Scale, and fixed note speed are fitted automatically to the source ratio.",
+            "videoHelp": "Video frames sampled at the selected FPS are placed with the same fitted screen ratio.",
+            "imageTimingHelp": "The image enters from the horizon, stays still for the hold duration, then exits downward. A duration of 0 is immediate.",
+            "convert": "Convert",
+            "loading": "Loading media...",
+            "converting": "Converting media to Guide art...",
+            "progress": "Converting frames... {0}/{1}",
+            "ready": "Guide art is ready. Click the chart to place it.",
+            "unsupported": "This image or video format cannot be decoded by the browser.",
+            "invalidRange": "The video range or FPS is invalid.",
+            "invalidTiming": "Image entrance, hold, and exit durations must be zero or greater.",
+            "tooManySegments": "The image conversion exceeds 4,000 Guide segments. Reduce the resolution."
+        },
         "coverEditor": {
             "title": "Cover Editor",
             "cover": "Cover",

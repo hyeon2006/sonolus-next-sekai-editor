@@ -3,6 +3,7 @@ import type { GroupId } from '../../../chart/groups'
 import type { StageId, Stages } from '../../../chart/stages'
 import type { NoteEntity } from '../../../state/entities/slides/note'
 import type { Store } from '../../../state/store'
+import { getGuideArtFrameGroupId, getGuideArtSegmentBeats } from '../../../state/store/guideArt'
 
 export const serializeSlidesToLevelDataEntities = (
     groupEntities: Map<GroupId, LevelDataEntity>,
@@ -381,6 +382,208 @@ export const serializeSlidesToLevelDataEntities = (
     }
 
     return entities
+}
+
+export function* serializeGuideArtsToLevelDataEntities(
+    groupEntities: Map<GroupId, LevelDataEntity>,
+    stageEntities: Map<StageId, LevelDataEntity> | undefined,
+    store: Store,
+    getName: () => string,
+): Generator<LevelDataEntity> {
+    for (const guideArt of store.guideArts) {
+        let stage: LevelDataEntity | undefined
+        if (stageEntities) {
+            stage = stageEntities.get(guideArt.stageId)
+            if (!stage) throw new Error('Unexpected missing Guide art stage')
+        }
+
+        for (const [frameIndex, frame] of guideArt.frames.entries()) {
+            const timeScaleGroup = groupEntities.get(getGuideArtFrameGroupId(guideArt, frameIndex))
+            if (!timeScaleGroup) throw new Error('Unexpected missing Guide art group')
+
+            for (const rect of frame.rects) {
+                const beats = getGuideArtSegmentBeats(guideArt, frameIndex, rect)
+                const lane =
+                    guideArt.anchorLane + (rect.left + rect.width / 2) * guideArt.widthLanes
+                const size = (rect.width * guideArt.widthLanes) / 2
+                const createNote = (beat: number, alpha: number): LevelDataEntity => ({
+                    archetype: 'FakeAnchorNote',
+                    data: [
+                        {
+                            name: '#TIMESCALE_GROUP',
+                            ref: (timeScaleGroup.name ??= getName()),
+                        },
+                        ...(stage
+                            ? [
+                                  {
+                                      name: 'stage',
+                                      ref: (stage.name ??= getName()),
+                                  },
+                              ]
+                            : []),
+                        {
+                            name: EngineArchetypeDataName.Beat,
+                            value: beat,
+                        },
+                        {
+                            name: 'lane',
+                            value: lane,
+                        },
+                        {
+                            name: 'size',
+                            value: size,
+                        },
+                        {
+                            name: 'direction',
+                            value: 0,
+                        },
+                        {
+                            name: 'isAttached',
+                            value: 0,
+                        },
+                        {
+                            name: 'isSeparator',
+                            value: 0,
+                        },
+                        {
+                            name: 'connectorEase',
+                            value: 0,
+                        },
+                        {
+                            name: 'segmentKind',
+                            value: guideSegmentKinds[rect.color],
+                        },
+                        {
+                            name: 'segmentAlpha',
+                            value: alpha,
+                        },
+                        {
+                            name: 'segmentLayer',
+                            value: segmentLayers[guideArt.layer],
+                        },
+                        {
+                            name: 'effectKind',
+                            value: sfxs.none,
+                        },
+                        {
+                            name: 'segmentThroughJudgeLine',
+                            value: 0,
+                        },
+                        {
+                            name: 'segmentPresentation',
+                            value: segmentPresentations.default,
+                        },
+                    ],
+                })
+
+                const head = createNote(beats.head, rect.headAlpha)
+                const tail = createNote(beats.tail, rect.tailAlpha)
+                head.data.push({
+                    name: 'next',
+                    ref: (tail.name ??= getName()),
+                })
+
+                const connector: LevelDataEntity = {
+                    archetype: 'Connector',
+                    data: [
+                        {
+                            name: 'head',
+                            ref: (head.name ??= getName()),
+                        },
+                        {
+                            name: 'tail',
+                            ref: tail.name,
+                        },
+                        {
+                            name: 'segmentHead',
+                            ref: head.name,
+                        },
+                        {
+                            name: 'segmentTail',
+                            ref: tail.name,
+                        },
+                    ],
+                }
+
+                yield head
+                yield tail
+                yield connector
+            }
+        }
+    }
+}
+
+export function* serializeGuideArtsToLevelDataJson(
+    groupEntities: Map<GroupId, LevelDataEntity>,
+    stageEntities: Map<StageId, LevelDataEntity> | undefined,
+    store: Store,
+    getName: () => string,
+): Generator<string> {
+    for (const guideArt of store.guideArts) {
+        let stageName: string | undefined
+        if (stageEntities) {
+            stageName = stageEntities.get(guideArt.stageId)?.name
+            if (!stageName) throw new Error('Unexpected missing Guide art stage name')
+        }
+
+        for (const [frameIndex, frame] of guideArt.frames.entries()) {
+            const groupName = groupEntities.get(getGuideArtFrameGroupId(guideArt, frameIndex))?.name
+            if (!groupName) throw new Error('Unexpected missing Guide art group name')
+
+            for (const rect of frame.rects) {
+                const beats = getGuideArtSegmentBeats(guideArt, frameIndex, rect)
+                const lane =
+                    guideArt.anchorLane + (rect.left + rect.width / 2) * guideArt.widthLanes
+                const size = (rect.width * guideArt.widthLanes) / 2
+                const tailName = getName()
+                const headName = getName()
+                const noteData = {
+                    groupName,
+                    stageName,
+                    lane,
+                    size,
+                    segmentKind: guideSegmentKinds[rect.color],
+                    segmentLayer: segmentLayers[guideArt.layer],
+                }
+
+                yield serializeGuideArtNoteJson(
+                    beats.head,
+                    headName,
+                    tailName,
+                    rect.headAlpha,
+                    noteData,
+                )
+                yield serializeGuideArtNoteJson(
+                    beats.tail,
+                    tailName,
+                    undefined,
+                    rect.tailAlpha,
+                    noteData,
+                )
+                yield `{"archetype":"Connector","data":[{"name":"head","ref":${JSON.stringify(headName)}},{"name":"tail","ref":${JSON.stringify(tailName)}},{"name":"segmentHead","ref":${JSON.stringify(headName)}},{"name":"segmentTail","ref":${JSON.stringify(tailName)}}]}`
+            }
+        }
+    }
+}
+
+const serializeGuideArtNoteJson = (
+    beat: number,
+    name: string,
+    next: string | undefined,
+    alpha: number,
+    data: {
+        groupName: string
+        stageName: string | undefined
+        lane: number
+        size: number
+        segmentKind: number
+        segmentLayer: number
+    },
+) => {
+    const stage = data.stageName ? `,{"name":"stage","ref":${JSON.stringify(data.stageName)}}` : ''
+    const nextData = next ? `,{"name":"next","ref":${JSON.stringify(next)}}` : ''
+
+    return `{"archetype":"FakeAnchorNote","data":[{"name":"#TIMESCALE_GROUP","ref":${JSON.stringify(data.groupName)}}${stage},{"name":${JSON.stringify(EngineArchetypeDataName.Beat)},"value":${JSON.stringify(beat)}},{"name":"lane","value":${JSON.stringify(data.lane)}},{"name":"size","value":${JSON.stringify(data.size)}},{"name":"direction","value":0},{"name":"isAttached","value":0},{"name":"isSeparator","value":0},{"name":"connectorEase","value":0},{"name":"segmentKind","value":${data.segmentKind}},{"name":"segmentAlpha","value":${JSON.stringify(alpha)}},{"name":"segmentLayer","value":${data.segmentLayer}},{"name":"effectKind","value":${sfxs.none}},{"name":"segmentThroughJudgeLine","value":0},{"name":"segmentPresentation","value":${segmentPresentations.default}}${nextData}],"name":${JSON.stringify(name)}}`
 }
 
 const beatToTicks = 480

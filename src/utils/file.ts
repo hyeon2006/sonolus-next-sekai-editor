@@ -1,7 +1,8 @@
-export const pickFile = () =>
+export const pickFile = (accept?: string) =>
     new Promise<File | undefined>((resolve) => {
         const input = document.createElement('input')
         input.type = 'file'
+        if (accept) input.accept = accept
 
         input.onchange = () => {
             resolve(input.files?.[0])

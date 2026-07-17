@@ -1,3 +1,6 @@
+import type { ConnectorLayer } from '../../chart/note'
+import { beatToTime } from '../../state/integrals/bpms'
+import { getGuideArtFrameBeatRange, getGuideArtSegmentBeats } from '../../state/store/guideArt'
 import type { PreviewRenderer, ZKey } from '../gl'
 import type { NoteParticleSet, PreviewParticle } from '../particle'
 import type { PreviewSkin } from '../skin'
@@ -39,8 +42,11 @@ import {
     ConnectorKind,
     NoteKind,
     isActiveConnectorKind,
+    type ConnectorLayerValue,
     type NoteKindValue,
     type PreviewChart,
+    type PreviewConnector,
+    type PreviewGuideArt,
     type PreviewNote,
 } from './model'
 import { drawNote, drawSlideNoteHead, getNoteSpriteSet } from './note'
@@ -58,6 +64,8 @@ import {
 import { hideNotesAt, preemptTime, progressTo, scaledTimeAt } from './timescale'
 
 const CONNECTOR_THROUGH_JUDGE_LINE_DESPAWN_DELAY = 5
+
+const MAX_CACHED_GUIDE_ART_FRAMES = 8
 
 const SPAWN_PROGRESS_FLOOR = -2
 
@@ -352,19 +360,21 @@ export const renderPreviewFrame = (
     let particleOrder = 0
     const nextParticleZ = (layer = PARTICLE_LAYER): ZKey => [layer, particleOrder++]
 
-    for (const connector of chart.connectors) {
+    const drawPreviewConnector = (connector: PreviewConnector) => {
         const { head, tail, segmentHead, segmentTail } = connector
 
         const endTime =
             Math.max(head.targetTime, tail.targetTime) +
             (connector.throughJudgeLine ? CONNECTOR_THROUGH_JUDGE_LINE_DESPAWN_DELAY : 0)
-        if (now >= endTime) continue
+        if (now >= endTime) return
 
-        if (groupHidesNotes(segmentHead)) continue
+        if (groupHidesNotes(segmentHead)) return
 
-        if (Math.max(noteProgress(head), noteProgress(tail)) < SPAWN_PROGRESS_FLOOR) continue
+        const spawnProgressFloor =
+            connector.kind >= ConnectorKind.guideNeutral ? 0 : SPAWN_PROGRESS_FLOOR
+        if (Math.max(noteProgress(head), noteProgress(tail)) < spawnProgressFloor) return
 
-        if (connector.activeTail && now >= connector.activeTail.targetTime) continue
+        if (connector.activeTail && now >= connector.activeTail.targetTime) return
 
         let visualState
         if (connector.kind === ConnectorKind.damage) {
@@ -474,6 +484,82 @@ export const renderPreviewFrame = (
             connector.fullScreen,
             connector.throughJudgeLine,
         )
+    }
+
+    for (const connector of chart.connectors) drawPreviewConnector(connector)
+
+    for (const index of chart.guideConnectorIndexes) {
+        const preempt = preempts[index.groupIndex] ?? preemptTime(noteSpeed, 0)
+        const spawnScaledTime = (scaledNows[index.groupIndex] ?? now) + preempt
+        const from = findFirstGreater(index.endTimes, now)
+        const to = findFirstGreater(index.spawnScaledTimes, spawnScaledTime)
+
+        for (let i = from; i < to; i++) {
+            const connector = index.connectors[i]
+            if (connector) drawPreviewConnector(connector)
+        }
+    }
+
+    for (const previewGuideArt of chart.guideArts) {
+        const { guideArt, groupIndex } = previewGuideArt
+        const group = chart.groups[groupIndex]
+        if (!group) continue
+
+        const preempt = preempts[groupIndex] ?? preemptTime(noteSpeed, 0)
+        const spawnScaledTime = (scaledNows[groupIndex] ?? now) + preempt
+        const frameCount = guideArt.frames.length
+        const from = findFirstGreaterBy(
+            frameCount,
+            (frameIndex) =>
+                beatToTime(chart.bpms, getGuideArtFrameBeatRange(guideArt, frameIndex).end),
+            now,
+        )
+        // Video frames display from the previous frame's segment start (its display
+        // end); one extra frame is included since hidden groups cull themselves.
+        const to =
+            guideArt.kind === 'video'
+                ? Math.min(
+                      frameCount,
+                      findFirstGreaterBy(
+                          frameCount,
+                          (frameIndex) =>
+                              frameIndex === 0
+                                  ? Number.NEGATIVE_INFINITY
+                                  : beatToTime(
+                                        chart.bpms,
+                                        getGuideArtFrameBeatRange(guideArt, frameIndex - 1).start,
+                                    ),
+                          now,
+                      ) + 1,
+                  )
+                : findFirstGreaterBy(
+                      frameCount,
+                      (frameIndex) =>
+                          scaledTimeAt(
+                              group,
+                              beatToTime(
+                                  chart.bpms,
+                                  getGuideArtFrameBeatRange(guideArt, frameIndex).start,
+                              ),
+                          ),
+                      spawnScaledTime,
+                  )
+
+        for (let frameIndex = from; frameIndex < to; frameIndex++) {
+            let frameConnectors = previewGuideArt.frameConnectors.get(frameIndex)
+            if (!frameConnectors) {
+                frameConnectors = createGuideArtFrameConnectors(chart, previewGuideArt, frameIndex)
+                previewGuideArt.frameConnectors.set(frameIndex, frameConnectors)
+
+                while (previewGuideArt.frameConnectors.size > MAX_CACHED_GUIDE_ART_FRAMES) {
+                    const oldest = previewGuideArt.frameConnectors.keys().next().value
+                    if (oldest === undefined) break
+                    previewGuideArt.frameConnectors.delete(oldest)
+                }
+            }
+
+            for (const connector of frameConnectors) drawPreviewConnector(connector)
+        }
     }
 
     for (const note of chart.notes) {
@@ -916,3 +1002,108 @@ export const renderPreviewFrame = (
 
     renderer.flush()
 }
+
+const findFirstGreater = (values: Float64Array, target: number) => {
+    let lo = 0
+    let hi = values.length
+
+    while (lo < hi) {
+        const mid = (lo + hi) >> 1
+        if ((values[mid] ?? Number.POSITIVE_INFINITY) <= target) {
+            lo = mid + 1
+        } else {
+            hi = mid
+        }
+    }
+
+    return lo
+}
+
+const findFirstGreaterBy = (length: number, valueAt: (index: number) => number, target: number) => {
+    let lo = 0
+    let hi = length
+
+    while (lo < hi) {
+        const mid = (lo + hi) >> 1
+        if (valueAt(mid) <= target) {
+            lo = mid + 1
+        } else {
+            hi = mid
+        }
+    }
+
+    return lo
+}
+
+const createGuideArtFrameConnectors = (
+    chart: PreviewChart,
+    { guideArt, groupIndex, altGroupIndex, stageIndex }: PreviewGuideArt,
+    frameIndex: number,
+): PreviewConnector[] => {
+    const frameGroupIndex =
+        guideArt.kind === 'video' && frameIndex % 2 === 1 ? altGroupIndex : groupIndex
+    const group = chart.groups[frameGroupIndex]
+    const frame = guideArt.frames[frameIndex]
+    if (!group || !frame) return []
+
+    const connectors: PreviewConnector[] = []
+
+    for (const rect of frame.rects) {
+        const beats = getGuideArtSegmentBeats(guideArt, frameIndex, rect)
+        const headTime = beatToTime(chart.bpms, beats.head)
+        const tailTime = beatToTime(chart.bpms, beats.tail)
+        const lane = guideArt.anchorLane + (rect.left + rect.width / 2) * guideArt.widthLanes
+        const size = (rect.width * guideArt.widthLanes) / 2
+
+        const createNote = (targetTime: number): PreviewNote => ({
+            kind: NoteKind.anchor,
+            isCritical: false,
+            isFake: true,
+            targetTime,
+            lane,
+            size,
+            direction: FlickDirection.upOmni,
+            groupIndex: frameGroupIndex,
+            stageIndex,
+            isAttached: false,
+            connectorEase: 0,
+            targetScaledTime: scaledTimeAt(group, targetTime),
+        })
+
+        const head = createNote(headTime)
+        const tail = createNote(tailTime)
+        connectors.push({
+            kind: guideConnectorKinds[rect.color],
+            ease: 0,
+            head,
+            tail,
+            segmentHead: head,
+            segmentTail: tail,
+            segmentHeadAlpha: rect.headAlpha,
+            segmentTailAlpha: rect.tailAlpha,
+            layer: guideArtConnectorLayers[guideArt.layer],
+            throughJudgeLine: false,
+            fullScreen: false,
+        })
+    }
+
+    return connectors
+}
+
+const guideArtConnectorLayers: Record<ConnectorLayer, ConnectorLayerValue> = {
+    top: 0,
+    bottom: 1,
+    under: 2,
+    over: 3,
+}
+
+const guideConnectorKinds = {
+    neutral: ConnectorKind.guideNeutral,
+    red: ConnectorKind.guideRed,
+    green: ConnectorKind.guideGreen,
+    blue: ConnectorKind.guideBlue,
+    yellow: ConnectorKind.guideYellow,
+    purple: ConnectorKind.guidePurple,
+    cyan: ConnectorKind.guideCyan,
+    black: ConnectorKind.guideBlack,
+} as const

@@ -2,6 +2,9 @@ import type { CameraChange, FlickDirectionValue } from './layout'
 import type { EaseTypeValue } from './math'
 import type { TimescaleGroup } from './timescale'
 
+import type { BpmIntegral } from '../../state/integrals/bpms'
+import type { StoredGuideArt } from '../../state/store/guideArt'
+
 export const NoteKind = {
     tap: 0,
     trace: 1,
@@ -89,6 +92,21 @@ export type PreviewConnector = {
     fullScreen: boolean
 }
 
+export type PreviewConnectorIndex = {
+    groupIndex: number
+    connectors: PreviewConnector[]
+    spawnScaledTimes: Float64Array
+    endTimes: Float64Array
+}
+
+export type PreviewGuideArt = {
+    guideArt: StoredGuideArt
+    groupIndex: number
+    altGroupIndex: number
+    stageIndex: number
+    frameConnectors: Map<number, PreviewConnector[]>
+}
+
 export type PreviewSlide = {
     activeHead: PreviewNote
     activeTail: PreviewNote
@@ -153,8 +171,11 @@ export type PreviewStage = {
 
 export type PreviewChart = {
     isDynamicStages: boolean
+    bpms: BpmIntegral[]
     notes: PreviewNote[]
     connectors: PreviewConnector[]
+    guideConnectorIndexes: PreviewConnectorIndex[]
+    guideArts: PreviewGuideArt[]
     slides: PreviewSlide[]
     simLines: PreviewSimLine[]
     cameras: CameraChange[]

@@ -19,6 +19,7 @@ import { fullscreen } from './fullscreen'
 import { groupAll } from './groups/groupAll'
 import { groupNext } from './groups/groupNext'
 import { groupPrev } from './groups/groupPrev'
+import { guideArt } from './guideArt'
 import { help } from './help'
 import { jumpDown } from './jumps/jumpDown'
 import { jumpUp } from './jumps/jumpUp'
@@ -104,6 +105,7 @@ export const commands = {
     cut,
     copy,
     paste,
+    guideArt,
     undo,
     redo,
     increaseNoteSize,

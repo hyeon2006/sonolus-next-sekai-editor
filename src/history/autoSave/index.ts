@@ -8,6 +8,8 @@ import { showModal } from '../../modals'
 import InfoModal from '../../modals/InfoModal.vue'
 import LoadingModal from '../../modals/LoadingModal.vue'
 import { settings } from '../../settings'
+import type { Store } from '../../state/store'
+import { countGuideArtSegments } from '../../state/store/guideArt'
 import { storageGet, storageRemove, storageSet } from '../../storage'
 import { timeout } from '../../utils/promise'
 import { filename } from '../filename'
@@ -34,6 +36,11 @@ export const useAutoSave = () => {
             id = setTimeout(() => {
                 if (!enabled) return
 
+                if (hasTooManyStoreEntities(state.store)) {
+                    disableAutoSave()
+                    return
+                }
+
                 const levelData = serializeToLevelData(
                     state.initialLife,
                     state.isDynamicStages,
@@ -42,13 +49,8 @@ export const useAutoSave = () => {
                     state.groups,
                     state.stages,
                 )
-                if (levelData.entities.length > 10000) {
-                    enabled = false
-
-                    void showModal(InfoModal, {
-                        title: () => i18n.value.history.autoSave.title,
-                        message: () => i18n.value.history.autoSave.disabled,
-                    })
+                if (levelData.entities.length > AUTO_SAVE_ENTITY_LIMIT) {
+                    disableAutoSave()
                     return
                 }
 
@@ -78,4 +80,32 @@ export const useAutoSave = () => {
 
 export const resetAutoSave = () => {
     enabled = true
+}
+
+const AUTO_SAVE_ENTITY_LIMIT = 10000
+
+const hasTooManyStoreEntities = (store: Store) => {
+    if (countGuideArtSegments(store.guideArts) * 3 > AUTO_SAVE_ENTITY_LIMIT) return true
+
+    const entities = new Set()
+
+    for (const map of Object.values(store.grid)) {
+        for (const values of map.values()) {
+            for (const entity of values) {
+                entities.add(entity)
+                if (entities.size > AUTO_SAVE_ENTITY_LIMIT) return true
+            }
+        }
+    }
+
+    return false
+}
+
+const disableAutoSave = () => {
+    enabled = false
+
+    void showModal(InfoModal, {
+        title: () => i18n.value.history.autoSave.title,
+        message: () => i18n.value.history.autoSave.disabled,
+    })
 }
