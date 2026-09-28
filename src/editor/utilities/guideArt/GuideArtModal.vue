@@ -95,7 +95,8 @@ const onGenerate = async () => {
     progressTotal.value =
         value.kind === 'image'
             ? 1
-            : Math.max(
+            : 2 *
+              Math.max(
                   0,
                   Math.ceil(
                       (Math.min(Math.max(end.value, 0), value.duration) -
