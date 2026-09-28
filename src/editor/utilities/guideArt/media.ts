@@ -216,7 +216,11 @@ export const prepareGuideArt = async (
     if (!(end > start) || !(options.fps > 0)) throw new GuideArtConversionError('invalidRange')
 
     const frameCount = Math.ceil((end - start) * options.fps)
-    options.onProgress?.(0, frameCount)
+    // Decoding and packing are both substantial parts of video conversion. Keep
+    // packing in the reported workload so the UI cannot reach 100% while this
+    // second phase is still running.
+    const progressTotal = frameCount * 2
+    options.onProgress?.(0, progressTotal)
 
     const frameDuration = (end - start) / frameCount
     const cellFrames = await decodeVideoFrames(
@@ -226,7 +230,7 @@ export const prepareGuideArt = async (
         start,
         frameDuration,
         frameCount,
-        options.onProgress,
+        (current) => options.onProgress?.(current, progressTotal),
     )
 
     // Quantize with temporal hysteresis so noise does not flicker cells between
@@ -243,6 +247,8 @@ export const prepareGuideArt = async (
         // and quantization is a fixed point on identical input, so extend directly.
         if (cellFrame === previousCellFrame && frameEnds.length) {
             frameEnds[frameEnds.length - 1] = index + 1
+            options.onProgress?.(frameCount + index + 1, progressTotal)
+            if (index % 4 === 3) await nextFrame()
             continue
         }
         previousCellFrame = cellFrame
@@ -257,6 +263,9 @@ export const prepareGuideArt = async (
             frameEnds.push(index + 1)
             previousUniqueCells = quantized
         }
+
+        options.onProgress?.(frameCount + index + 1, progressTotal)
+        if (index % 4 === 3) await nextFrame()
     }
 
     return {
