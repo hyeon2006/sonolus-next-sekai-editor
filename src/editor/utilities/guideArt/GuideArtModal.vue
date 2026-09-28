@@ -90,6 +90,7 @@ const onGenerate = async () => {
     if (!value) return
 
     let prepared: Awaited<ReturnType<typeof prepareGuideArt>> | undefined
+    progress.value = ''
 
     await showModal(LoadingModal, {
         title: () => i18n.value.utilities.guideArt.title,
@@ -111,9 +112,11 @@ const onGenerate = async () => {
                     holdDuration: holdDuration.value,
                     exitDuration: exitDuration.value,
                     onProgress(current, total) {
+                        const percent = Math.min(100, Math.round((current / total) * 100))
                         progress.value = i18n.value.utilities.guideArt.progress
                             .replace('{0}', `${current}`)
                             .replace('{1}', `${total}`)
+                            .concat(` (${percent}%)`)
                     },
                 })
             } catch (error) {
