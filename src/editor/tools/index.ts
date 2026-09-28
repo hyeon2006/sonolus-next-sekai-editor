@@ -9,6 +9,7 @@ import { stageMaskEvent } from './events/stage/mask'
 import { stagePivotEvent } from './events/stage/pivot'
 import { stageStyleEvent } from './events/stage/style'
 import { stageTransformEvent } from './events/stage/transform'
+import { generateSlideNotes } from './generateSlideNotes'
 import { guideArt } from './guideArt'
 import { note } from './note'
 import { offset } from './offset'
@@ -39,6 +40,7 @@ export const tools = {
 
     note,
     slide,
+    generateSlideNotes,
 
     bpm,
     timeScale,
