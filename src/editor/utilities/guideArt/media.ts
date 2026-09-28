@@ -83,6 +83,12 @@ const ALPHA_FINE_SCALE = 4
 const ALPHA_HYSTERESIS_FINE = 3
 const MAX_GRADIENT_STEP_DELTA = 2
 
+// Color matching is the hottest per-pixel operation during video conversion.
+// Six bits per channel keeps the maximum input error to two 8-bit levels while
+// replacing HSV conversion and a full palette scan with one typed-array lookup.
+const PALETTE_LOOKUP_BITS = 6
+const PALETTE_LOOKUP_SHIFT = 8 - PALETTE_LOOKUP_BITS
+
 const REPAIR_SOURCE_GAP_FACTOR = 1.25
 const STATIC_REPAIR_FILL_MAX_FRAMES = 32
 
@@ -106,6 +112,8 @@ const palette = (Object.entries(guideColors) as [ConnectorGuideColor, string][])
         }
     },
 )
+
+let paletteLookup: Uint8Array | undefined
 
 export const loadGuideMedia = async (file: File): Promise<GuideMediaSource> => {
     const kind = getMediaKind(file)
@@ -420,7 +428,8 @@ const decodeVideoFramesWithPlayback = async (
         const staleRanges: [number, number][] = []
         for (let index = 0; index < frameCount; index++) {
             const coverStart = coverStarts[index] ?? Number.NEGATIVE_INFINITY
-            if (frames[index] && sampleTimeAt(index) - coverStart <= staleTolerance) continue
+            if (frames[index] && Math.abs(sampleTimeAt(index) - coverStart) <= staleTolerance)
+                continue
 
             const last = staleRanges.at(-1)
             if (last?.[1] === index - 1) {
@@ -505,8 +514,7 @@ const decodeVideoWorkerByPlayback = async (
         MAX_VIDEO_DECODE_PLAYBACK_RATE,
     )
     let index = from
-    let pendingCells: CellFrame | undefined
-    let pendingTime = Number.NEGATIVE_INFINITY
+    let previousPresentedTime = Number.NEGATIVE_INFINITY
 
     await new Promise<void>((resolve, reject) => {
         let callbackId = 0
@@ -531,37 +539,44 @@ const decodeVideoWorkerByPlayback = async (
             cleanup()
             reject(new GuideArtConversionError('unsupported'))
         }
-        // Assign every sample the latest frame presented at or before it, sharing one
-        // captured cell frame across all samples it covers.
-        const flushThrough = (mediaTime: number) => {
-            const cells = pendingCells
-            if (!cells) return
-
-            while (index < to && start + (index + 0.5) * frameDuration < mediaTime) {
-                setFrame(index, cells, pendingTime)
-                index++
-            }
-        }
         const onEnded = () => {
-            flushThrough(Number.POSITIVE_INFINITY)
+            if (index < to) {
+                const cells = captureFrame(video)
+                while (index < to) {
+                    setFrame(index, cells, video.currentTime)
+                    index++
+                }
+            }
             finish()
         }
         const onError = () => {
             fail()
         }
         const onVideoFrame = (_now: number, metadata: { mediaTime: number }): void => {
-            if (pendingTime !== Number.NEGATIVE_INFINITY) {
-                onPresentedDelta(metadata.mediaTime - pendingTime)
+            if (previousPresentedTime !== Number.NEGATIVE_INFINITY) {
+                onPresentedDelta(metadata.mediaTime - previousPresentedTime)
             }
-            flushThrough(metadata.mediaTime)
+            previousPresentedTime = metadata.mediaTime
+
+            // A callback is delivered for every decoded source frame, which can be
+            // several times the requested output FPS. Only read the canvas when this
+            // presentation reaches an output sample. This avoids most draw and
+            // readback work for 30/60 FPS sources. The first presentation at or
+            // after the sample stays within one source-frame interval; the repair
+            // pass still handles larger presentation gaps.
+            const firstSampleTime = start + (index + 0.5) * frameDuration
+            if (index < to && firstSampleTime <= metadata.mediaTime) {
+                const cells = captureFrame(video)
+                do {
+                    setFrame(index, cells, metadata.mediaTime)
+                    index++
+                } while (index < to && start + (index + 0.5) * frameDuration <= metadata.mediaTime)
+            }
 
             if (index >= to) {
                 finish()
                 return
             }
-
-            pendingCells = captureFrame(video)
-            pendingTime = metadata.mediaTime
             callbackId = video.requestVideoFrameCallback(onVideoFrame)
         }
 
@@ -691,7 +706,7 @@ const createFrameCapturer = (columns: number, rows: number) => {
             const g = data[offset + 1] ?? 0
             const b = data[offset + 2] ?? 0
 
-            const colorIndex = getClosestPaletteColorIndex(rgbToHsv(r, g, b))
+            const colorIndex = getPaletteColorIndex(r, g, b)
             const entry = palette[colorIndex]
             if (!entry) throw new Error('Unexpected missing Guide palette')
 
@@ -764,10 +779,10 @@ const packQuantizedCells = (
     rows: number,
 ): GuideArtFrame => {
     const rects: GuideArtRect[] = []
-    let active = new Map<string, ActiveGuideArtRun>()
+    let active = new Map<number, ActiveGuideArtRun>()
 
     for (let y = 0; y < rows; y++) {
-        const nextActive = new Map<string, ActiveGuideArtRun>()
+        const nextActive = new Map<number, ActiveGuideArtRun>()
 
         for (let x = 0; x < columns;) {
             const offset = y * columns + x
@@ -787,7 +802,9 @@ const packQuantizedCells = (
                 end++
             }
 
-            const key = `${x}:${end}:${color}`
+            // A numeric key avoids allocating and hashing a string for every run in
+            // every frame. All factors are bounded by the current frame dimensions.
+            const key = (x * (columns + 1) + end) * (palette.length + 1) + color
             const run = active.get(key)
             const bottom = 1 - (y + 1) / rows
             let merged = false
@@ -848,6 +865,36 @@ const paletteColorAt = (index: number) => {
 const blackPaletteIndex = palette.findIndex(({ color }) => color === 'black')
 const neutralPaletteIndex = palette.findIndex(({ color }) => color === 'neutral')
 const purplePaletteIndex = palette.findIndex(({ color }) => color === 'purple')
+
+const getPaletteColorIndex = (r: number, g: number, b: number) => {
+    paletteLookup ??= createPaletteLookup()
+
+    const index =
+        ((r >> PALETTE_LOOKUP_SHIFT) << (PALETTE_LOOKUP_BITS * 2)) |
+        ((g >> PALETTE_LOOKUP_SHIFT) << PALETTE_LOOKUP_BITS) |
+        (b >> PALETTE_LOOKUP_SHIFT)
+    return paletteLookup[index] ?? neutralPaletteIndex
+}
+
+const createPaletteLookup = () => {
+    const channelSize = 1 << PALETTE_LOOKUP_BITS
+    const lookup = new Uint8Array(channelSize ** 3)
+    const halfStep = 1 << (PALETTE_LOOKUP_SHIFT - 1)
+
+    for (let r = 0; r < channelSize; r++) {
+        for (let g = 0; g < channelSize; g++) {
+            for (let b = 0; b < channelSize; b++) {
+                const red = Math.min(255, (r << PALETTE_LOOKUP_SHIFT) + halfStep)
+                const green = Math.min(255, (g << PALETTE_LOOKUP_SHIFT) + halfStep)
+                const blue = Math.min(255, (b << PALETTE_LOOKUP_SHIFT) + halfStep)
+                const index = (r << (PALETTE_LOOKUP_BITS * 2)) | (g << PALETTE_LOOKUP_BITS) | b
+                lookup[index] = getClosestPaletteColorIndex(rgbToHsv(red, green, blue))
+            }
+        }
+    }
+
+    return lookup
+}
 
 const getClosestPaletteColorIndex = (source: { h: number; s: number; v: number }) => {
     if (source.v < 0.22) return blackPaletteIndex
