@@ -188,6 +188,7 @@ export const prepareGuideArt = async (
             throw new GuideArtConversionError('invalidTiming')
         }
 
+        options.onProgress?.(0, 1)
         const cells = createFrameCapturer(columns, rows)(source.bitmap)
         const frame = packQuantizedCells(quantizeCells(cells, undefined), columns, rows)
         if (frame.rects.length > MAX_IMAGE_SEGMENTS)
@@ -215,6 +216,7 @@ export const prepareGuideArt = async (
     if (!(end > start) || !(options.fps > 0)) throw new GuideArtConversionError('invalidRange')
 
     const frameCount = Math.ceil((end - start) * options.fps)
+    options.onProgress?.(0, frameCount)
 
     const frameDuration = (end - start) / frameCount
     const cellFrames = await decodeVideoFrames(
