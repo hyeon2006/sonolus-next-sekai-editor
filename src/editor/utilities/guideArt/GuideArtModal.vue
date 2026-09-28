@@ -36,7 +36,8 @@ const compatibilityNoteSpeed = ref(6)
 const entranceDuration = ref(0.5)
 const holdDuration = ref(1)
 const exitDuration = ref(0.5)
-const progress = ref('')
+const progressCurrent = ref(0)
+const progressTotal = ref(0)
 
 const rows = computed(() =>
     source.value
@@ -90,9 +91,22 @@ const onGenerate = async () => {
     if (!value) return
 
     let prepared: Awaited<ReturnType<typeof prepareGuideArt>> | undefined
+    progressCurrent.value = 0
+    progressTotal.value =
+        value.kind === 'image'
+            ? 1
+            : Math.max(
+                  0,
+                  Math.ceil(
+                      (Math.min(Math.max(end.value, 0), value.duration) -
+                          Math.min(Math.max(start.value, 0), value.duration)) *
+                          fps.value,
+                  ),
+              )
 
     await showModal(LoadingModal, {
         title: () => i18n.value.utilities.guideArt.title,
+        progress: () => ({ current: progressCurrent.value, total: progressTotal.value }),
         async *task() {
             yield () => i18n.value.utilities.guideArt.converting
             await timeout(50)
@@ -111,16 +125,13 @@ const onGenerate = async () => {
                     holdDuration: holdDuration.value,
                     exitDuration: exitDuration.value,
                     onProgress(current, total) {
-                        progress.value = i18n.value.utilities.guideArt.progress
-                            .replace('{0}', `${current}`)
-                            .replace('{1}', `${total}`)
+                        progressCurrent.value = current
+                        progressTotal.value = total
                     },
                 })
             } catch (error) {
                 throw localizedError(error)
             }
-
-            yield () => progress.value || i18n.value.utilities.guideArt.converting
         },
     })
 
