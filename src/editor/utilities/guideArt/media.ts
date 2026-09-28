@@ -2,6 +2,8 @@ import type { ConnectorGuideColor, ConnectorLayer } from '../../../chart/note'
 import type { StoredGuideArtFrame, StoredGuideArtRect } from '../../../state/store/guideArt'
 import { guideColors } from '../../../utils/colors'
 import { clamp } from '../../../utils/math'
+import { packCellFrames, type CellFrame, type PackedGuideArt } from './pack'
+import PackWorker from './pack.worker?worker'
 
 export type GuideArtRect = StoredGuideArtRect
 export type GuideArtFrame = StoredGuideArtFrame
@@ -80,8 +82,6 @@ const GUIDE_ALPHA = 0.6
 
 const ALPHA_QUANT_STEPS = 20
 const ALPHA_FINE_SCALE = 4
-const ALPHA_HYSTERESIS_FINE = 3
-const MAX_GRADIENT_STEP_DELTA = 2
 
 // Color matching is the hottest per-pixel operation during video conversion.
 // Six bits per channel keeps the maximum input error to two 8-bit levels while
@@ -91,16 +91,6 @@ const PALETTE_LOOKUP_SHIFT = 8 - PALETTE_LOOKUP_BITS
 
 const REPAIR_SOURCE_GAP_FACTOR = 1.25
 const STATIC_REPAIR_FILL_MAX_FRAMES = 32
-
-type CellFrame = {
-    colors: Uint8Array
-    alphas: Uint8Array
-}
-
-type QuantizedCells = {
-    colors: Uint8Array
-    steps: Uint8Array
-}
 
 const palette = (Object.entries(guideColors) as [ConnectorGuideColor, string][]).map(
     ([color, hex]) => {
@@ -190,7 +180,8 @@ export const prepareGuideArt = async (
 
         options.onProgress?.(0, 1)
         const cells = createFrameCapturer(columns, rows)(source.bitmap)
-        const frame = packQuantizedCells(quantizeCells(cells, undefined), columns, rows)
+        const frame = packCellFrames([cells], columns, rows).frames[0]
+        if (!frame) throw new GuideArtConversionError('unsupported')
         if (frame.rects.length > MAX_IMAGE_SEGMENTS)
             throw new GuideArtConversionError('tooManySegments')
 
@@ -233,40 +224,16 @@ export const prepareGuideArt = async (
         (current) => options.onProgress?.(current, progressTotal),
     )
 
-    // Quantize with temporal hysteresis so noise does not flicker cells between
-    // adjacent alpha levels, then merge identical consecutive frames into one
-    // stored frame spanning them, so static sections and low frame rate sources
-    // emit far fewer segments.
-    const frames: GuideArtFrame[] = []
-    const frameEnds: number[] = []
-    let previousCellFrame: CellFrame | undefined
-    let previousCells: QuantizedCells | undefined
-    let previousUniqueCells: QuantizedCells | undefined
-    for (const [index, cellFrame] of cellFrames.entries()) {
-        // Samples covered by the same presented frame share one cell frame object,
-        // and quantization is a fixed point on identical input, so extend directly.
-        if (cellFrame === previousCellFrame && frameEnds.length) {
-            frameEnds[frameEnds.length - 1] = index + 1
-            options.onProgress?.(frameCount + index + 1, progressTotal)
-            if (index % 4 === 3) await nextFrame()
-            continue
-        }
-        previousCellFrame = cellFrame
-
-        const quantized = quantizeCells(cellFrame, previousCells)
-        previousCells = quantized
-
-        if (previousUniqueCells && isSameQuantizedCells(previousUniqueCells, quantized)) {
-            frameEnds[frameEnds.length - 1] = index + 1
-        } else {
-            frames.push(packQuantizedCells(quantized, columns, rows))
-            frameEnds.push(index + 1)
-            previousUniqueCells = quantized
-        }
-
-        options.onProgress?.(frameCount + index + 1, progressTotal)
-        if (index % 4 === 3) await nextFrame()
-    }
+    // Quantization and rectangle generation are the CPU-heavy second half. Run them
+    // off the UI thread and transfer ownership of the decoded grids without copying.
+    const { frames, frameEnds } = await packCellFramesInWorker(
+        cellFrames,
+        columns,
+        rows,
+        (current) => {
+            options.onProgress?.(frameCount + current, progressTotal)
+        },
+    )
 
     return {
         kind: source.kind,
@@ -283,6 +250,50 @@ export const prepareGuideArt = async (
         compatibilityNoteSpeed: options.compatibilityNoteSpeed,
     }
 }
+
+const packCellFramesInWorker = (
+    cellFrames: CellFrame[],
+    columns: number,
+    rows: number,
+    onProgress: (current: number) => void,
+) =>
+    new Promise<PackedGuideArt>((resolve, reject) => {
+        const worker = new PackWorker()
+        const finish = () => {
+            worker.terminate()
+        }
+
+        worker.onmessage = (
+            event: MessageEvent<
+                | { type: 'progress'; current: number }
+                | { type: 'complete'; packed: PackedGuideArt }
+                | { type: 'error'; message: string }
+            >,
+        ) => {
+            if (event.data.type === 'progress') {
+                onProgress(event.data.current)
+                return
+            }
+
+            finish()
+            if (event.data.type === 'complete') {
+                resolve(event.data.packed)
+            } else {
+                reject(new Error(event.data.message))
+            }
+        }
+        worker.onerror = () => {
+            finish()
+            reject(new GuideArtConversionError('unsupported'))
+        }
+
+        const buffers = new Set<ArrayBuffer>()
+        for (const frame of cellFrames) {
+            buffers.add(frame.colors.buffer as ArrayBuffer)
+            buffers.add(frame.alphas.buffer as ArrayBuffer)
+        }
+        worker.postMessage({ cellFrames, columns, rows }, [...buffers])
+    })
 
 const getMediaKind = (file: File) => {
     if (file.type.startsWith('image/')) return 'image'
@@ -612,7 +623,7 @@ const decodeVideoWorkerBySeeking = async (
         const sampleTime = start + (i + 0.5) * frameDuration
         await seekVideo(video, sampleTime)
         setFrame(i, captureFrame(video), sampleTime)
-        if ((i - from) % 4 === 3) await nextFrame()
+        if ((i - from) % 4 === 3) await yieldToMainThread()
     }
 }
 
@@ -736,38 +747,6 @@ const createFrameCapturer = (columns: number, rows: number) => {
     }
 }
 
-const quantizeCells = (frame: CellFrame, previous: QuantizedCells | undefined): QuantizedCells => {
-    const colors = new Uint8Array(frame.colors)
-    const steps = new Uint8Array(colors.length)
-
-    for (let i = 0; i < colors.length; i++) {
-        if (!colors[i]) continue
-
-        const fine = frame.alphas[i] ?? 0
-        let step = Math.round(fine / ALPHA_FINE_SCALE)
-
-        // Keep the previous frame's level while the raw value stays close to it, so
-        // noise does not flicker cells between adjacent levels and defeat frame merging.
-        if (previous && previous.colors[i] === colors[i]) {
-            const previousStep = previous.steps[i] ?? 0
-            if (Math.abs(fine - previousStep * ALPHA_FINE_SCALE) <= ALPHA_HYSTERESIS_FINE) {
-                step = previousStep
-            }
-        }
-
-        if (step) {
-            steps[i] = step
-        } else {
-            colors[i] = 0
-        }
-    }
-
-    return { colors, steps }
-}
-
-const isSameQuantizedCells = (a: QuantizedCells, b: QuantizedCells) =>
-    isSameBytes(a.colors, b.colors) && isSameBytes(a.steps, b.steps)
-
 const isSameBytes = (a: Uint8Array, b: Uint8Array) => {
     if (a.length !== b.length) return false
 
@@ -776,101 +755,6 @@ const isSameBytes = (a: Uint8Array, b: Uint8Array) => {
     }
 
     return true
-}
-
-type ActiveGuideArtRun = {
-    index: number
-    lastStep: number
-    stepDelta: number | undefined
-}
-
-const packQuantizedCells = (
-    { colors, steps }: QuantizedCells,
-    columns: number,
-    rows: number,
-): GuideArtFrame => {
-    const rects: GuideArtRect[] = []
-    let active = new Map<number, ActiveGuideArtRun>()
-
-    for (let y = 0; y < rows; y++) {
-        const nextActive = new Map<number, ActiveGuideArtRun>()
-
-        for (let x = 0; x < columns;) {
-            const offset = y * columns + x
-            const color = colors[offset]
-            const step = steps[offset] ?? 0
-            if (!color || !step) {
-                x++
-                continue
-            }
-
-            let end = x + 1
-            while (
-                end < columns &&
-                colors[y * columns + end] === color &&
-                steps[y * columns + end] === step
-            ) {
-                end++
-            }
-
-            // A numeric key avoids allocating and hashing a string for every run in
-            // every frame. All factors are bounded by the current frame dimensions.
-            const key = (x * (columns + 1) + end) * (palette.length + 1) + color
-            const run = active.get(key)
-            const bottom = 1 - (y + 1) / rows
-            let merged = false
-
-            // Rows with the same span whose alpha changes at a constant small rate
-            // merge into one rect rendered as a gradient between its end alphas.
-            if (run) {
-                const rect = rects[run.index]
-                if (!rect) throw new Error('Unexpected missing Guide rectangle')
-
-                const stepDelta = step - run.lastStep
-                if (
-                    Math.abs(stepDelta) <= MAX_GRADIENT_STEP_DELTA &&
-                    (run.stepDelta === undefined || run.stepDelta === stepDelta)
-                ) {
-                    rect.bottom = bottom
-                    rect.height += 1 / rows
-                    rect.headAlpha = step / ALPHA_QUANT_STEPS
-                    run.lastStep = step
-                    run.stepDelta = stepDelta
-                    nextActive.set(key, run)
-                    merged = true
-                }
-            }
-
-            if (!merged) {
-                rects.push({
-                    left: x / columns,
-                    width: (end - x) / columns,
-                    bottom,
-                    height: 1 / rows,
-                    color: paletteColorAt(color - 1),
-                    headAlpha: step / ALPHA_QUANT_STEPS,
-                    tailAlpha: step / ALPHA_QUANT_STEPS,
-                })
-                nextActive.set(key, {
-                    index: rects.length - 1,
-                    lastStep: step,
-                    stepDelta: undefined,
-                })
-            }
-
-            x = end
-        }
-
-        active = nextActive
-    }
-
-    return { rects }
-}
-
-const paletteColorAt = (index: number) => {
-    const entry = palette[index]
-    if (!entry) throw new Error('Unexpected missing Guide palette')
-    return entry.color
 }
 
 const blackPaletteIndex = palette.findIndex(({ color }) => color === 'black')
@@ -973,9 +857,16 @@ function rgbToHsv(r: number, g: number, b: number) {
     }
 }
 
-const nextFrame = () =>
-    new Promise<void>((resolve) =>
-        requestAnimationFrame(() => {
+// MessageChannel yields to input/rendering without waiting for the next animation
+// frame. Besides avoiding a 60 Hz throughput cap, this also keeps conversions
+// moving in throttled/background tabs where requestAnimationFrame may pause.
+const yieldToMainThread = () =>
+    new Promise<void>((resolve) => {
+        const channel = new MessageChannel()
+        channel.port1.onmessage = () => {
+            channel.port1.close()
+            channel.port2.close()
             resolve()
-        }),
-    )
+        }
+        channel.port2.postMessage(undefined)
+    })
