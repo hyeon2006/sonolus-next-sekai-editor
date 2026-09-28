@@ -91,6 +91,12 @@ const PALETTE_LOOKUP_SHIFT = 8 - PALETTE_LOOKUP_BITS
 
 const REPAIR_SOURCE_GAP_FACTOR = 1.25
 const STATIC_REPAIR_FILL_MAX_FRAMES = 32
+// Packing is CPU-only and normally takes much less than a frame per large batch.
+// Yield by elapsed time rather than by frame count: the old `requestAnimationFrame`
+// every four frames imposed a ~4 ms minimum per output frame at 60 Hz, regardless
+// of how little work the frame needed. This was especially visible when progress
+// crossed 50%, where packing starts.
+const PACKING_TIME_SLICE_MS = 12
 
 type CellFrame = {
     colors: Uint8Array
@@ -242,13 +248,17 @@ export const prepareGuideArt = async (
     let previousCellFrame: CellFrame | undefined
     let previousCells: QuantizedCells | undefined
     let previousUniqueCells: QuantizedCells | undefined
+    let packingDeadline = performance.now() + PACKING_TIME_SLICE_MS
     for (const [index, cellFrame] of cellFrames.entries()) {
         // Samples covered by the same presented frame share one cell frame object,
         // and quantization is a fixed point on identical input, so extend directly.
         if (cellFrame === previousCellFrame && frameEnds.length) {
             frameEnds[frameEnds.length - 1] = index + 1
-            options.onProgress?.(frameCount + index + 1, progressTotal)
-            if (index % 4 === 3) await nextFrame()
+            if (performance.now() >= packingDeadline) {
+                options.onProgress?.(frameCount + index + 1, progressTotal)
+                await yieldToMainThread()
+                packingDeadline = performance.now() + PACKING_TIME_SLICE_MS
+            }
             continue
         }
         previousCellFrame = cellFrame
@@ -264,9 +274,14 @@ export const prepareGuideArt = async (
             previousUniqueCells = quantized
         }
 
-        options.onProgress?.(frameCount + index + 1, progressTotal)
-        if (index % 4 === 3) await nextFrame()
+        if (performance.now() >= packingDeadline) {
+            options.onProgress?.(frameCount + index + 1, progressTotal)
+            await yieldToMainThread()
+            packingDeadline = performance.now() + PACKING_TIME_SLICE_MS
+        }
     }
+
+    options.onProgress?.(progressTotal, progressTotal)
 
     return {
         kind: source.kind,
@@ -612,7 +627,7 @@ const decodeVideoWorkerBySeeking = async (
         const sampleTime = start + (i + 0.5) * frameDuration
         await seekVideo(video, sampleTime)
         setFrame(i, captureFrame(video), sampleTime)
-        if ((i - from) % 4 === 3) await nextFrame()
+        if ((i - from) % 4 === 3) await yieldToMainThread()
     }
 }
 
@@ -973,9 +988,16 @@ function rgbToHsv(r: number, g: number, b: number) {
     }
 }
 
-const nextFrame = () =>
-    new Promise<void>((resolve) =>
-        requestAnimationFrame(() => {
+// MessageChannel yields to input/rendering without waiting for the next animation
+// frame. Besides avoiding a 60 Hz throughput cap, this also keeps conversions
+// moving in throttled/background tabs where requestAnimationFrame may pause.
+const yieldToMainThread = () =>
+    new Promise<void>((resolve) => {
+        const channel = new MessageChannel()
+        channel.port1.onmessage = () => {
+            channel.port1.close()
+            channel.port2.close()
             resolve()
-        }),
-    )
+        }
+        channel.port2.postMessage(undefined)
+    })
